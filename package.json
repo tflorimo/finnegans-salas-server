@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "description": "backend aplicacion de salas de finnegans",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon",
+    "start": "node dist/index.js",
+    "build": "tsc -p .tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
@@ -27,6 +32,7 @@
     "@types/express": "^5.0.3",
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.5.2",
+    "cors": "^2.8.5",
     "google-auth-library": "^10.3.0",
     "googleapis": "^160.0.0",
     "mysql2": "^3.15.0",
