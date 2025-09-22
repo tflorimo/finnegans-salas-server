@@ -27,6 +27,7 @@ Backend en **Node.js + TypeScript** para la gestión de reservas de salas, integ
 
 ## Rutas
 http://localhost:3000/api/auth/google ---> link de autenticación 
+<br>
 http://localhost:3000/api/calendar/events ----> consume los eventos directo del calendar
 
 ## Proximo
