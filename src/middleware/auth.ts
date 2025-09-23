@@ -19,12 +19,16 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         // Paso 3: Verificar validez del token
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'secret');
 
+        console.log('decoded: ' + JSON.stringify(decoded));
+
         // Paso 4: Buscar usuario en base de datos
-        const user = await User.findByPk(decoded.id);
+        const user = await User.findOne({ where: { email: decoded.email } });
+
+
 
         // Paso 5: Verificar existencia del usuario
         if (!user) {
-            return res.status(401).json({ message: 'Token no válido.' });
+            return res.status(401).json({ message: 'Token no válido, sin usuariooo!!!!.' });
         }
 
         // Paso 6: Adjuntar usuario a la solicitud
@@ -33,7 +37,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         // Paso 7: Permitir continuar
         next();
     } catch (error) {
-        res.status(401).json({ message: 'Token no válido.' });
+        res.status(401).json({ message: 'Token no válido, 401111111.' });
     }
 };
 export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {

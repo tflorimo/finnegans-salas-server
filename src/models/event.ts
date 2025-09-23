@@ -17,7 +17,7 @@ const Event = sequelize.define('Event', {
         unique: true,
     },
     userId:{
-        type:DataTypes.STRING,
+        type:DataTypes.INTEGER,
         allowNull:false,
         references: {
             model:User,

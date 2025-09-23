@@ -96,7 +96,7 @@ class AuthController {
         },
         appToken,
         tokens: {
-          access_token: tokens.access_token?.substring(0, 20) + '...',
+          access_token: tokens.access_token,
           refresh_token: tokens.refresh_token ? 'Recibido' : 'No recibido',
           expiry_date: tokens.expiry_date
         },

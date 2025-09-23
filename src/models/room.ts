@@ -34,7 +34,7 @@ const Room = sequelize.define('Room', {
     tableName: 'rooms',  //nombre en la tabla de la bd
     indexes: [
         { fields: ['email'] },
-        { fields: ['name '] },
+        { fields: ['name'] },
     ],
 });
 

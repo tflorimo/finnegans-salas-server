@@ -19,7 +19,7 @@ const googleCalendarController = {
         });
       }
 
-      const calendarId = String(req.query.calendarId || 'primary');
+      const calendarId = String(req.query.calendarId);
       const now = new Date();
 
       const timeMin = String(
