@@ -1,16 +1,13 @@
-// src/services/googleCalendarService.ts
 import { calendar, oauth2Client } from "../config/googleCalendar";
 
 
 class GoogleCalendarService {
 
-/**
-    Obtiene los eventos de un calendario de Google.
-    @param calendarId  ID del calendario (por ejemplo "primary").
-    @param timeMin     Fecha/hora mínima en formato ISO 8601.
-    @param timeMax     Fecha/hora máxima en formato ISO 8601.
-*/
-
+    /**
+      
+        @param timeMin     Fecha/hora mínima en formato ISO 8601.
+        @param timeMax     Fecha/hora máxima en formato ISO 8601.
+    */
     async getEvents(calendarId: string, timeMin: string, timeMax: string) {
         try {
             //  Verifica si el access_token expiró y lo refresca automáticamente
@@ -18,7 +15,7 @@ class GoogleCalendarService {
                 oauth2Client.credentials.expiry_date &&
                 oauth2Client.credentials.expiry_date <= Date.now()
             ) {
-                await oauth2Client.getAccessToken(); // Método recomendado, reemplaza refreshAccessToken()
+                await oauth2Client.getAccessToken();
             }
 
             const response = await calendar.events.list({
@@ -38,10 +35,8 @@ class GoogleCalendarService {
     }
 
 
-    /*
-    * Genera la URL de autenticación OAuth2.
-    * Útil si quieres iniciar el flujo de autenticación fuera del controlador principal.
-    */
+
+    // Genera la URL de autenticación OAuth2.    
     getAuthUrl(): string {
         return oauth2Client.generateAuthUrl({
             access_type: "offline",
@@ -70,5 +65,4 @@ class GoogleCalendarService {
     }
 }
 
-// Exporta una instancia única del servicio
 export default new GoogleCalendarService();

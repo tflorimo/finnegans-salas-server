@@ -15,7 +15,7 @@ const Room = sequelize.define('Room', {
         allowNull: false,
 
     },
-    capacity: {  // dato creado para el admin 
+    capacity: {  // dato ser modificado para el admin y mostrado en display
         type: DataTypes.INTEGER,
         allowNull: false,
     },
@@ -31,7 +31,7 @@ const Room = sequelize.define('Room', {
 
     },
 }, {
-    tableName: 'rooms',  //nombre en la tabla de la bd
+    tableName: 'rooms',  
     indexes: [
         { fields: ['email'] },
         { fields: ['name'] },
