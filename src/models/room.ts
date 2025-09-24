@@ -41,5 +41,3 @@ const Room = sequelize.define
     });
 
 export default Room;
-
-
