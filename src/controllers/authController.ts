@@ -1,4 +1,4 @@
-// src/controllers/authController.ts
+
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { google } from 'googleapis';
