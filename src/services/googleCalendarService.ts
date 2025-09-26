@@ -2,11 +2,12 @@ import { calendar, oauth2Client } from "../config/googleCalendar";
 
 
 class GoogleCalendarService {
-
+    
     /**
-      
-        @param timeMin     Fecha/hora mínima en formato ISO 8601.
-        @param timeMax     Fecha/hora máxima en formato ISO 8601.
+      * Obtiene los eventos de un calendario de Google.
+      * @param calendarId  ID del calendario (ej "primary")
+      * @param timeMin     Fecha/hora mínima en formato ISO 8601
+      * @param timeMax     Fecha/hora máxima en formato ISO 8601
     */
     async getEvents(calendarId: string, timeMin: string, timeMax: string) {
         try {
@@ -22,21 +23,21 @@ class GoogleCalendarService {
                 calendarId,
                 timeMin,
                 timeMax,
-                singleEvents: true,   // Devuelve instancias individuales de eventos recurrentes
+                singleEvents: true,   // instancias individuales de eventos recurrentes
                 orderBy: "startTime", // Ordena por fecha/hora de inicio
-                maxResults: 2500,     // Límite máximo de resultados
+                maxResults: 2500,     // limite de resultados
             });
 
             return response.data.items;
         } catch (error) {
-            console.error("Error fetching events from Google Calendar:", error);
+            console.error("Error trayendo eventos de Google Calendar:", error);
             throw error;
         }
     }
 
-
-
-    // Genera la URL de autenticación OAuth2.    
+    /**
+     * Genera la URL de autenticación OAuth2
+     */
     getAuthUrl(): string {
         return oauth2Client.generateAuthUrl({
             access_type: "offline",
@@ -50,8 +51,7 @@ class GoogleCalendarService {
     }
 
     /*
-      Intercambia un código de autorización por tokens de Google
-      y actualiza las credenciales del cliente OAuth2.
+     * Intercambia un código de autorización por tokens de Google y actualiza las credenciales del cliente OAuth2
      */
     async getTokens(code: string) {
         try {
