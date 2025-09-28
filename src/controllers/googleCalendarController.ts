@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import googleCalendarService from '../services/googleCalendarService';
 import { hasValidTokens } from '../config/googleCalendar';
-import Event from '../models/event';
 import { AuthRequest } from "../middleware/auth";
 
 const googleCalendarController = {
@@ -30,33 +29,13 @@ const googleCalendarController = {
         new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
       );
 
-      const events = await googleCalendarService.getEvents(
-        calendarId,
-        timeMin,
-        timeMax
-      );
+
+      const events = await googleCalendarService.getEvents(calendarId, timeMin, timeMax);
+
       // Guarda en BD si se solicita con ?save=true
       if (req.query.save === 'true' && events) {
-        const userId = req.user?.id
-          ? String(req.user.id)
-          : '1'; // fallback por si no se envía usuario
-
-        for (const event of events) {
-          await Event.upsert({
-            googleEventId: event.id!,
-            title: event.summary || 'Sin título',
-            startTime: new Date(
-              event.start?.dateTime || (event.start?.date as string)
-            ),
-            endTime: new Date(
-              event.end?.dateTime || (event.end?.date as string)
-            ),
-            roomEmail: calendarId,
-            userId,
-            attendees: JSON.stringify(event.attendees || []),
-          });
-        }
-        console.log(`💾 ${events.length} eventos guardados en BD`);
+        const userId = req.user?.id ? String(req.user.id) : '1';
+        await googleCalendarService.saveEvents(events, userId, calendarId);
       }
 
       res.json({
@@ -75,4 +54,4 @@ const googleCalendarController = {
 };
 
 
-  export default googleCalendarController;
+export default googleCalendarController;
