@@ -1,8 +1,9 @@
 import { calendar, oauth2Client } from "../config/googleCalendar";
+import Event from "../models/event";
 
 
 class GoogleCalendarService {
-    
+
     /**
       * Obtiene los eventos de un calendario de Google.
       * @param calendarId  ID del calendario (ej "primary")
@@ -63,6 +64,23 @@ class GoogleCalendarService {
             throw error;
         }
     }
+    async saveEvents(events: any[], userId: string, calendarId: string) {
+        for (const event of events) {
+            await Event.upsert({
+                googleEventId: event.id!,
+                title: event.summary || 'Sin título',
+                startTime: new Date(event.start?.dateTime || (event.start?.date as string)),
+                endTime: new Date(event.end?.dateTime || (event.end?.date as string)),
+                roomEmail: calendarId,
+                userId,
+                attendees: JSON.stringify(event.attendees || []),
+            });
+        }
+        console.log(` ${events.length} eventos guardados en BD`);
+    }
+
+
+
 }
 
 export default new GoogleCalendarService();
