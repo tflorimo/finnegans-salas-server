@@ -15,24 +15,26 @@ const Room = sequelize.define
         name: {
             type: DataTypes.STRING,
             allowNull: false,
-
         },
+
         capacity: {  // dato creado para el admin 
             type: DataTypes.INTEGER,
             allowNull: false,
         },
+
         description: {
             type: DataTypes.TEXT,
             allowNull: true,
-
-
         },
+
         displayName: {
             type: DataTypes.STRING,
             allowNull: false,
-
         },
+
     }, {
+        timestamps: true,
+        paranoid: true, // borrado logico
         tableName: 'rooms',  //nombre en la tabla de la bd
         indexes: [
             { fields: ['email'] },

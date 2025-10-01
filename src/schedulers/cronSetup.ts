@@ -2,6 +2,15 @@ import { BorrarEventosJob } from "../jobs/borrarEventosJob";
 import cronScheduler from "./cronScheduler";
 
 export const setupJobs = () => {
+    
+    /**
+     * @TODO
+     * habilitar los jobs cuando esten probados o para testing
+     */
+
+    console.log('Jobs deshabilitados por ahora!!');
+    return;
+    console.log('Jobs programados...');
     const borrarEventos = new BorrarEventosJob();
 
     cronScheduler.schedule({
