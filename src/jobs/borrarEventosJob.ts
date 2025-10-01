@@ -13,15 +13,22 @@ export class BorrarEventosJob {
             /**
              * borramos los eventos que : 
              * 1) no tienen el checkin hecho (checkedIn = false)
-             * 2) se excedieron del tiempo limite
+             * 2) se excedieron del tiempo limite (15 minutos despues de la hora de inicio)
              */
 
             const eventosABorrar = await Event.findAll({
                 where: {
                     checkedIn: false,
                     startTime: {
-                        // Si startTime - 15min < now, entonces ya pasó el límite
-                        [Op.lt]: new Date(now.getTime() + 15 * 60 * 1000)
+                        // busco los eventos cuyo startTime es mayor a 15 minutos después de ahora
+                        /**
+                         * @usecases
+                         * startTime: 17:00
+                         * checkedIn: false
+                         * now: 17:16 -> se borra
+                         * now: 17:14 -> no se borra
+                         */
+                        [Op.gt]: new Date(now.getTime() - 15 * 60000) // 15 minutos en milisegundos
                     }
                 }
             });
