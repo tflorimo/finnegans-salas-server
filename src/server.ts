@@ -4,7 +4,6 @@ import sequelize from './config/database';
 import { setupJobs } from './schedulers/cronSetup';
 
 import './models/user';
-import { log } from 'console';
 
 dotenv.config();
 
@@ -25,7 +24,6 @@ async function iniciarServidor() {
 		});
 		
 		setupJobs();
-		console.log('Jobs programados');
 
 	} catch (error) {
 		console.error('Error al iniciar el servidor:', error);

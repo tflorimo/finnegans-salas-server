@@ -14,7 +14,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         if (!token) {
             return res.status(401).json({ message: 'Acceso denegado. No hay token proporcionado.' });
         }
-        //Verifica y decodifica el token
+        // Verifica y decodifica el token
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'secret');
         console.log('decoded: ' + JSON.stringify(decoded));
 
@@ -26,16 +26,17 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         req.user = user;
         next();
     } catch (error) {
-        res.status(401).json({ message: 'Token no válido, 401111111.' });
+        res.status(401).json({ message: 'Token no válido, 401.' });
     }
 };
+
 export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
     // verifica si el usuario adjuntado por 'authenticate' es admin
     if (req.user?.role !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Se requieren permisos de administrador.' });
     }
     next();
-}
+};
 
 
 /* 
