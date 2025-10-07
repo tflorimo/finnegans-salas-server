@@ -20,13 +20,13 @@ const googleCalendarController = {
       const calendarId = String(req.query.calendarId);
       const now = new Date();
 
-      const timeMin = String(
-        req.query.timeMin ||
-        new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      const timeMin = String( // valor por defecto: 30 dias atras
+        req.query.timeMin || 
+        new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias en milisegundos
       );
       const timeMax = String(
         req.query.timeMax ||
-        new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias en milisegundos
       );
 
 

@@ -56,6 +56,10 @@ const Event = sequelize.define
             type: DataTypes.BOOLEAN,   // sirve para identificar que eventos no dieron checkin y de esa manera eliminarlos del calendar y de la bd pasado los 15 min con los jobs
             defaultValue: false,
         },
+        attendees: {
+            type: DataTypes.JSON,  // Asegúrate de tener este campo para los asistentes
+            allowNull: true,
+        },
 
     }, {
         timestamps: true,
@@ -72,4 +76,6 @@ const Event = sequelize.define
 Event.belongsTo(Room, { foreignKey: 'roomEmail', targetKey: 'email' });
 Room.hasMany(Event, { foreignKey: 'roomEmail', sourceKey: 'email' });
 
+Event.belongsTo(User, { foreignKey: 'userId', targetKey: 'id' });
+User.hasMany(Event, { foreignKey: 'userId', sourceKey: 'id' });
 export default Event;
