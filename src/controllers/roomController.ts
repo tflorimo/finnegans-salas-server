@@ -16,7 +16,7 @@ class RoomController {
         }
     }
 
-    async getRoomById(req: Request, res: Response): Promise<void> {
+    async getRoomById(req: Request, res: Response): Promise<void> { 
         try {
             const { id } = req.params;
             const room = await this.roomService.getRoomById(id);

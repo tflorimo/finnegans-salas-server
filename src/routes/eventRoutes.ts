@@ -1,4 +1,4 @@
-import {Router} from 'express';
+import { Router } from 'express';
 import EventController from '../controllers/eventController';
 import { authenticate } from '../middleware/auth';
 
