@@ -4,3 +4,4 @@ dist/
 *.log
 .vscode/
 credentials.json
+service_account_key.json
