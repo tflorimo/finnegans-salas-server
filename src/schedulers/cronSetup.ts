@@ -2,25 +2,15 @@ import { BorrarEventosJob } from "../jobs/borrarEventosJob";
 import cronScheduler from "./cronScheduler";
 
 export const setupJobs = () => {
-    
-    /**
-     * @TODO
-     * habilitar los jobs cuando esten probados o para testing
-     */
-
-    console.log('Jobs deshabilitados por ahora!!');
-    return;
-    console.log('Jobs programados...');
     const borrarEventos = new BorrarEventosJob();
 
     cronScheduler.schedule({
         name: 'Descarga de eventos de Calendar',
         cronExpression: '* * * * *', // Cada minuto
         task: async () => {
-            // Lógica para descargar eventos de Calendar
-            console.log('Descargando eventos de Calendar...');
+            // syncCalendarEvents.execute();
         },
-        enabled: true
+        enabled: false
     });
 
     cronScheduler.schedule({
@@ -29,6 +19,32 @@ export const setupJobs = () => {
         task: async () => {
             await borrarEventos.execute();
         },
-        enabled: true
+        enabled: false
     });
+
+    cronScheduler.schedule({
+        name: 'Chequeo y sincronización de room resources',
+        cronExpression: '0 */1 * * *', // Cada 1 hora
+        task: async () => {
+            // await borrarEventos.execute();
+        },
+        enabled: false
+    });
+}
+
+/**
+ * Interfaz para todos los jobs remotos (que interactúan con Google APIs)
+ * Obliga a cumplir el contrato de tener el método execute y la propiedad ADMIN_ACCOUNT_IMPERSONATE (la cuenta utilizada por el back para hablar con Google APIs)
+ */
+export interface JobRemoto {
+    execute(): Promise<void>;
+    ADMIN_ACCOUNT_IMPERSONATE: string;
+}
+
+/**
+ * Interfaz para todos los jobs locales (que no interactúan con Google APIs)
+ * Obliga a cumplir el contrato de tener el método execute
+ */
+export interface JobLocal {
+    execute(): Promise<void>;
 }

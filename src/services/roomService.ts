@@ -1,5 +1,7 @@
 import { Model } from "sequelize";
 import Room from "../models/room";
+import { RoomDTO } from "../dtos/roomDTO";
+import type { RoomAttributes } from "../models/room.types";
 
 class RoomService {
 
@@ -9,6 +11,20 @@ class RoomService {
 
     async getRoomById(id: string): Promise<Model | null> {
         return Room.findByPk(id);
+    }
+
+    async upsertRoom(roomDTO: RoomDTO) : Promise<void> {
+        const roomValues: RoomAttributes = {
+            email: roomDTO.email,
+            name: roomDTO.name,
+            capacity: roomDTO.capacity,
+            description: roomDTO.description ?? null,
+            floor: roomDTO.floor,
+            type: roomDTO.type,
+            is_busy: roomDTO.is_busy,
+            resources: roomDTO.resources ?? null
+        }
+        await Room.upsert(roomValues);
     }
 }
 
