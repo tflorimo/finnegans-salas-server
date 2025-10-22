@@ -1,10 +1,11 @@
 import { log } from 'console';
 import Event from '../models/event';
 import { Op } from 'sequelize';
+import { JobLocal } from '../schedulers/cronSetup';
 
-export class BorrarEventosJob {
+export class BorrarEventosJob implements JobLocal {
 
-    async execute() {
+    async execute(): Promise<void> {
         try {
             console.log('Inicio de borrado de eventos sin checkIn...');
 
