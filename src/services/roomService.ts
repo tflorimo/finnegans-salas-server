@@ -26,6 +26,11 @@ class RoomService {
         }
         await Room.upsert(roomValues);
     }
+
+    async getAllRoomEmails(): Promise<string[]> {
+        const rooms =  await Room.findAll({ attributes: ['email'] });
+        return rooms.map(room => room.email);
+    }
 }
 
 export default new RoomService();

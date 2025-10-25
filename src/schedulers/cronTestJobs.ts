@@ -1,8 +1,8 @@
-import { SyncRoomResourcesJob } from '../jobs/syncRoomResources';
+import { SyncCalendarEventsJob } from '../jobs/syncCalendarEvents';
 
 (async () => {
   try {
-    const job = new SyncRoomResourcesJob();
+    const job = new SyncCalendarEventsJob();
     await job.execute();
     console.log('✅ Sincronización terminada.');
   } catch (error) {

@@ -1,5 +1,7 @@
 import { Model } from "sequelize";
 import Event from "../models/event";
+import { EventDTO } from "../dtos/eventDTO";
+import { EventAttributes } from "../models/event.types";
 
 class EventService {
 
@@ -11,51 +13,67 @@ class EventService {
         return Event.findByPk(id);
     }
 
-    async checkInEvent(id: string, userEmail: string): Promise<{ success: boolean; event?: Model | null; message?: string }> {
+    // async checkInEvent(id: string, userEmail: string): Promise<{ success: boolean; event?: Model | null; message?: string }> {
         
-        const respuesta = {
-            success: false,
-            event: null as Model | null,
-            message: 'msg a enviar'
+    //     const respuesta = {
+    //         success: false,
+    //         event: null as Model | null,
+    //         message: 'msg a enviar'
+    //     }
+
+    //     const event = await Event.findByPk(id);
+
+    //     if (!event) {
+    //         respuesta.message = 'Evento no encontrado';
+    //         return respuesta;
+    //     }
+
+    //     if(event.get('checkedIn') === true) {
+    //         respuesta.message = "Este evento ya posee el checkin realizado.";
+    //         return respuesta;
+    //     }
+
+    //     const attendees = event.get('attendees') as string[] | null;
+
+    //     if(attendees && !attendees.includes(userEmail)) {
+    //         respuesta.message = "Para poder hacer checkin, debes estar como asistente del evento!";
+    //         return respuesta;
+    //     }
+
+    //     const now = new Date();
+    //     const startTime = new Date(event.get('startTime') as Date);
+
+    //     // limite de 15 minutos después del startTime, superado ese tiempo no pueden hacer checkin
+    //     const limite = new Date(startTime.getTime() + (15 * 60) * 1000);
+
+    //     if(now > limite) {
+    //         respuesta.message = "El tiempo para hacer checkin ya expiró! No es posible realizar el checkin.";
+    //         return respuesta;
+    //     }
+
+    //     event.set('checkedIn', true);
+    //     await event.save();
+
+    //     respuesta.success = true;
+    //     respuesta.event = event;
+    //     respuesta.message = "Checkin realizado con éxito!";
+    //     return respuesta;
+    // }
+
+
+    async upsertEvent(eventDTO: EventDTO): Promise<void> {
+        const eventValues: EventAttributes = {
+            id: eventDTO.id,
+            creatorMail: eventDTO.creatorMail,
+            roomEmail: eventDTO.roomEmail,
+            startTime: eventDTO.startTime,
+            title: eventDTO.title,
+            endTime: eventDTO.endTime,
+            checkedIn: eventDTO.checkedIn,
+            attendees: eventDTO.attendees, // es un dto
         }
 
-        const event = await Event.findByPk(id);
-
-        if (!event) {
-            respuesta.message = 'Evento no encontrado';
-            return respuesta;
-        }
-
-        if(event.get('checkedIn') === true) {
-            respuesta.message = "Este evento ya posee el checkin realizado.";
-            return respuesta;
-        }
-
-        const attendees = event.get('attendees') as string[] | null;
-
-        if(attendees && !attendees.includes(userEmail)) {
-            respuesta.message = "Para poder hacer checkin, debes estar como asistente del evento!";
-            return respuesta;
-        }
-
-        const now = new Date();
-        const startTime = new Date(event.get('startTime') as Date);
-
-        // limite de 15 minutos después del startTime, superado ese tiempo no pueden hacer checkin
-        const limite = new Date(startTime.getTime() + (15 * 60) * 1000);
-
-        if(now > limite) {
-            respuesta.message = "El tiempo para hacer checkin ya expiró! No es posible realizar el checkin.";
-            return respuesta;
-        }
-
-        event.set('checkedIn', true);
-        await event.save();
-
-        respuesta.success = true;
-        respuesta.event = event;
-        respuesta.message = "Checkin realizado con éxito!";
-        return respuesta;
+        await Event.upsert(eventValues);
     }
 
 }

@@ -1,40 +1,20 @@
-import { Model } from "sequelize";
-import { EventDTO, EventDetailDTO } from "../../dtos/eventDTO";
+import { AttendeeDTO, EventDTO } from "../../dtos/eventDTO";
 
-export function mapEventToDTO(event: Model<Event>): EventDTO {
-    const eventData = event.get({ plain: true }) as any;
-    return {
-        id: eventData.id,
-        googleEventId: eventData.googleEventId,
-        title: eventData.title,
-        startTime: eventData.startTime,
-        endTime: eventData.endTime,
-        checkedIn: eventData.checkedIn,
-        room: {
-            email: eventData.Room?.email || '',
-            name: eventData.Room?.name || '',
-            displayName: eventData.Room?.displayName || '',
-            capacity: eventData.Room?.capacity || 0,
-            description: eventData.Room?.description || null,
-        },
-        creator: {
-            id: eventData.User?.id || 0,
-            name: eventData.User?.name || '',
-            email: eventData.User?.email || '',
-            role: eventData.User?.role || 'user',
-        }
-    };
-}
+export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): EventDTO {
 
-export function mapEventToDetailDTO(event: Model): EventDetailDTO {
-    const eventData = event.get({ plain: true }) as any;
+    const attendees: AttendeeDTO[] = eventResponse.attendees.map((attendee: any) => ({
+        email: attendee.email,
+        responseStatus: attendee.responseStatus
+    }));
 
     return {
-        ...mapEventToDTO(event),
-        attendees: eventData.attendees || []
-    };
-}
-
-export function mapEventsToDTO(events: Model[]): EventDTO[] {
-    return events.map(mapEventToDTO);
+        id: eventResponse.id as string,
+        creatorMail: eventResponse.creator.email as string,
+        roomEmail: roomEmail,
+        startTime: eventResponse.start.dateTime as Date,
+        title: eventResponse.summary as string,
+        endTime: eventResponse.end.dateTime as Date,
+        checkedIn: false, // propietario de la app (indica estado, es un boolean)
+        attendees: attendees,
+    } as EventDTO;
 }
