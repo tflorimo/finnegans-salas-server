@@ -31,7 +31,7 @@ export class SyncRoomResourcesJob implements JobRemoto {
 
         try {
             const response = await admin.resources.calendars.list({
-                customer: "process.env.CUSTOMER_ID",
+                customer: process.env.CUSTOMER_ID,
                 maxResults: 25,
             });
 

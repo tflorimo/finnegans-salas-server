@@ -3,8 +3,6 @@ import dotenv from 'dotenv';
 import sequelize from './config/database';
 import { setupJobs } from './schedulers/cronSetup';
 
-import './models/user';
-
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;

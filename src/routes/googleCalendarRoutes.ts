@@ -7,7 +7,7 @@ const router = Router();
 router.get(
     '/events',
     authenticate, // requiere usuario logueado (admin o user)
-    googleCalendarController.getEvents
+    // googleCalendarController.getEvents
 );
 
 export default router;

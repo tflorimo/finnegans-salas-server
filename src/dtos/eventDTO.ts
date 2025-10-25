@@ -1,24 +1,28 @@
+/**
+ * id: response.id
+ * title: response.summary
+ * startTime: response.start.dateTime
+ * endTime: response.end.dateTime
+ * checkedIn: propietario de la app (indica estado, es un boolean)
+ * roomEmail: viene en el loop del job
+ * creator: response.creator.email
+ * attendees: array de AttendeeDTO
+ */
+
+export type ResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction';
+
+export interface AttendeeDTO {
+    email: string;
+    responseStatus: ResponseStatus;
+}
+
 export interface EventDTO {
-    id: number;
-    googleEventId: string;
-    title: string;
+    id: string;
+    creatorMail: string;
+    roomEmail: string;
     startTime: Date;
+    title: string;
     endTime: Date;
     checkedIn: boolean;
-    room: {
-        email: string;
-        name: string;
-        displayName: string;
-        capacity: number;
-        description: string | null;
-    };
-    creator: {
-        id: number;
-        name: string;
-        email: string;
-        role: string;
-    };
-}
-export interface EventDetailDTO extends EventDTO {
-    attendees: string[];
+    attendees: AttendeeDTO[];
 }

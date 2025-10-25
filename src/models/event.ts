@@ -1,34 +1,42 @@
-import { DataTypes } from "sequelize";
+import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
+import { Attendee, EventAttributes } from "./event.types";
 import Room from "./room";
 import User from "./user";
 
+export class Event extends Model<EventAttributes> implements EventAttributes {
+    public id!: string;
+    public creatorMail!: string;
+    public roomEmail!: string;
+    public startTime!: Date;
+    public title!: string;
+    public endTime!: Date;
+    public checkedIn!: boolean;
+    public attendees!: Attendee[];
+    public readonly createdAt!: Date;
+    public readonly updatedAt!: Date;
+    public readonly deletedAt!: Date | null;
+}
 
-const Event = sequelize.define
-    (
-        'Event', {
+Event.init(
+    {
         id: {
-            type: DataTypes.INTEGER,
-            autoIncrement: true,
-            primaryKey: true,
-        },
-
-        googleEventId: {
             type: DataTypes.STRING,
             allowNull: false,
             unique: true,
+            primaryKey: true,
+            autoIncrement: false
         },
 
-        userId: {
-            type: DataTypes.INTEGER,
+        creatorMail: {
+            type: DataTypes.STRING,
             allowNull: false,
-            references: {
-                model: User,
-                key: 'id'
-            }
         },
 
-        roomEmail: {  //  roomEmail corresponde al calendarId en google calendar
+        /**
+         * @todo ver nota de abajo
+         */
+        roomEmail: {  //  roomEmail corresponde al calendarId en google calendar. en un mundo ideal, los usuarios crean eventos siempre en una sala. VER
             type: DataTypes.STRING,
             allowNull: false,
             references: {
@@ -37,13 +45,13 @@ const Event = sequelize.define
             }
         },
 
-        title: {
-            type: DataTypes.STRING,
+        startTime: {
+            type: DataTypes.DATE,
             allowNull: false,
         },
 
-        startTime: {
-            type: DataTypes.DATE,
+        title: {
+            type: DataTypes.STRING,
             allowNull: false,
         },
 
@@ -57,25 +65,23 @@ const Event = sequelize.define
             defaultValue: false,
         },
         attendees: {
-            type: DataTypes.JSON,  // Asegúrate de tener este campo para los asistentes
+            type: DataTypes.JSON, 
             allowNull: true,
         },
-
-    }, {
+    }, 
+    {
+        sequelize,
         timestamps: true,
         paranoid: true, // borrado logico
         tableName: 'events',
+        modelName: 'Event',
         indexes: [
             { fields: ['roomEmail'] },
             { fields: ['startTime'] },
-            { fields: ['checkedIn'] },
-            { fields: ['googleEventId'] }, // índice para búsquedas por Google Event ID
+            { fields: ['checkedIn'] }
         ],
     });
 
 Event.belongsTo(Room, { foreignKey: 'roomEmail', targetKey: 'email' });
 Room.hasMany(Event, { foreignKey: 'roomEmail', sourceKey: 'email' });
-
-Event.belongsTo(User, { foreignKey: 'userId', targetKey: 'id' });
-User.hasMany(Event, { foreignKey: 'userId', sourceKey: 'id' });
 export default Event;
