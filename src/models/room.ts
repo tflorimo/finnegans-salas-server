@@ -10,6 +10,7 @@ export class Room extends Model<RoomAttributes> implements RoomAttributes {
     public floor!: string;
     public type!: string;
     public is_busy!: boolean;
+    public current_event!: number | null;
     public resources!: string[] | null;
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
@@ -56,10 +57,16 @@ Room.init(
             allowNull: false,
         },
 
+        current_event: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
+
         resources: {
             type: DataTypes.JSON,
             allowNull: true,
         },
+
     },
     {   
         sequelize,
