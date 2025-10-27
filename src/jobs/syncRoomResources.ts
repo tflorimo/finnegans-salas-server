@@ -22,7 +22,7 @@ export class SyncRoomResourcesJob implements JobRemoto {
             keyFile: this.SERVICE_ACCOUNT_FILE,
             scopes: this.SCOPES,
             clientOptions: {
-                subject: "admin@finndevort.net.ar",
+                subject: this.ADMIN_ACCOUNT_IMPERSONATE,
             },
         });
 
