@@ -31,7 +31,7 @@ export const hasValidTokens = (): boolean => {
 
 export const setTokens = (tokens: any) => {
     oauth2Client.setCredentials(tokens);
-    console.log(" Tokens configurados");
+    console.log("Tokens configurados");
 };
 
 export const getTokenStatus = () => {
