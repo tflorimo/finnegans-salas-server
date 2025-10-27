@@ -29,7 +29,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
             keyFile: this.SERVICE_ACCOUNT_FILE,
             scopes: this.SCOPES,
             clientOptions: {
-                subject: "admin@finndevort.net.ar",
+                subject: this.ADMIN_ACCOUNT_IMPERSONATE,
             },
         });
 
@@ -49,11 +49,6 @@ export class SyncCalendarEventsJob implements JobRemoto {
                 const events = response.data.items || [];
                 for(const event of events) {
                     const eventDTO = mapResponseToEventDTO(event, email);
-
-                    console.log("--------- EVENTO ---------")
-                    console.log(JSON.stringify(eventDTO));
-                    console.log("--------- FIN EVENTO ---------")
-
                     await eventService.upsertEvent(eventDTO);
                 }
 
