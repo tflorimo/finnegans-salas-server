@@ -1,27 +1,14 @@
 import { Request, Response } from "express";
-import { google } from "googleapis";
-import jwt from "jsonwebtoken";
-import {
-  getTokenStatus,
-  oauth2Client,
-  setTokens,
-} from "../config/googleCalendar";
-import User from "../models/user";
-
-const oauth2 = google.oauth2("v2");
+import { getTokenStatus } from "../config/googleCalendar";
+import authService from "../services/authService";
+import jwtService from "../services/jwtService";
 
 class AuthController {
-  async authRedirect(req: Request, res: Response) {
+  async authRedirect(req: Request, res: Response): Promise<void> {
     try {
-      const authUrl = oauth2Client.generateAuthUrl({
-        access_type: "offline",
-        scope: [
-          "https://www.googleapis.com/auth/userinfo.profile",
-          "https://www.googleapis.com/auth/userinfo.email",
-          "https://www.googleapis.com/auth/calendar",
-        ],
-        prompt: "consent",
-      });
+      const userEmail = req.query.email as string | undefined;
+      
+      const authUrl = await authService.generateAuthenticationUrl({ userEmail });
       res.redirect(authUrl);
     } catch (error) {
       console.error("Error generating auth URL:", error);
@@ -32,81 +19,42 @@ class AuthController {
     }
   }
 
-  async oauth2Callback(req: Request, res: Response) {
+  async oauth2Callback(req: Request, res: Response): Promise<void> {
     try {
       const { code } = req.query;
+
       if (!code || typeof code !== "string") {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: "Código de autorización no proporcionado",
         });
+        return;
       }
 
-      // Intercambiar código por tokens
-      const { tokens } = await oauth2Client.getToken(code);
-      setTokens(tokens);
+      const result = await authService.processOAuthCallback(code);
 
-      // Obtener datos de perfil del usuario
-      const { data: profile } = await oauth2.userinfo.get({
-        auth: oauth2Client,
-      });
-      const email = profile.email || "";
-      const name = profile.name || "";
-      const picture = profile.picture || "";
-
-      if (!email) {
-        return res.status(400).json({
-          success: false,
-          message: "No se pudo obtener el email de Google",
-        });
+      if (result.shouldRedirectToConsent) {
+        res.redirect(result.consentUrl!);
+        return;
       }
 
-      // === NUEVO: asignar rol según ADMIN_EMAILS ===
-      const admins = (process.env.ADMIN_EMAILS || "")
-        .split(",")
-        .map((e) => e.trim())
-        .filter(Boolean);
-      const role = admins.includes(email) ? "admin" : "user";
-
-      // Upsert usuario en la BD con rol
-      const [user] = await User.upsert({ email, name, picture, role }, {
-        returning: true,
-      } as any);
-
-      // === NUEVO: guardar refresh_token en BD si lo envía Google ===
-      if (tokens.refresh_token) {
-        await User.update(
-          { refreshToken: tokens.refresh_token },
-          { where: { email } }
-        );
-      }
-
-      // Crear JWT propio para la sesión en la app
-      const appToken = jwt.sign(
-        { id: (user as any).id, email, role },
-        process.env.JWT_SECRET || "secret",
-        { expiresIn: "8h" }
-      );
-
-      const frontendURL = process.env.FRONTEND_URL;
-      const redirectUrl = `${frontendURL}/auth/callback?token=${appToken}`;
-
-      return res.redirect(redirectUrl);
+      res.redirect(result.redirectUrl!);
     } catch (error) {
       console.error("Error en callback de OAuth2:", error);
       res.status(500).json({
         success: false,
         message: "Error en el proceso de autenticación",
-        details: error instanceof Error ? error.message : error,
+        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-  async tokenStatus(req: Request, res: Response) {
+  async tokenStatus(req: Request, res: Response): Promise<void> {
     try {
       const status = getTokenStatus();
       res.json(status);
-    } catch {
+    } catch (error) {
+      console.error("Error verificando tokens:", error);
       res.status(500).json({
         success: false,
         message: "Error verificando tokens",
@@ -114,38 +62,34 @@ class AuthController {
     }
   }
 
-  async checkAuth(req: Request, res: Response) {
+  async checkAuth(req: Request, res: Response): Promise<void> {
     try {
       const token = req.header("Authorization")?.replace("Bearer ", "");
+
       if (!token) {
-        return res.status(401).json({
+        res.status(401).json({
           authenticated: false,
           message: "No hay token proporcionado",
         });
+        return;
       }
 
-      const decoded: any = jwt.verify(
-        token,
-        process.env.JWT_SECRET || "secret"
-      );
-      const user = await User.findByPk(decoded.id);
-      if (!user) {
-        return res.status(401).json({
+      const result = await jwtService.checkAuthentication(token);
+
+      if (!result.authenticated) {
+        res.status(401).json({
           authenticated: false,
-          message: "Usuario no encontrado",
+          message: result.message || "Token inválido",
         });
+        return;
       }
 
       res.json({
         authenticated: true,
-        user: {
-          id: (user as any).id,
-          email: (user as any).email,
-          name: (user as any).name,
-          role: (user as any).role,
-        },
+        user: result.user,
       });
-    } catch {
+    } catch (error) {
+      console.error("Error verificando autenticación:", error);
       res.status(401).json({
         authenticated: false,
         message: "Token inválido",
@@ -153,7 +97,7 @@ class AuthController {
     }
   }
 
-  async logout(req: Request, res: Response) {
+  async logout(req: Request, res: Response): Promise<void> {
     try {
       res.json({
         success: true,
