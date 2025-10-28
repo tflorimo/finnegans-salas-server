@@ -1,49 +1,35 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import User from '../models/user';
+import { Request, Response, NextFunction } from "express";
+import jwtService from "../services/jwtService";
 
-export interface AuthRequest extends Request {
-    user?: any;
-}
+export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
 
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-        
-        const token = req.header('Authorization')?.replace('Bearer ', '');
-
-        if (!token) {
-            return res.status(401).json({ message: 'Acceso denegado. No hay token proporcionado.' });
-        }
-        // Verifica y decodifica el token
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-        console.log('decoded: ' + JSON.stringify(decoded));
-
-        const user = await User.findOne({ where: { email: decoded.email } });
-
-        if (!user) {
-            return res.status(401).json({ message: 'Token no válido, sin usuariooo!!!!.' });
-        }
-        req.user = user;
-        next();
-    } catch (error) {
-        res.status(401).json({ message: 'Token no válido, 401.' });
+    if (!token) {
+      res.status(401).json({ message: 'Acceso denegado. No hay token proporcionado.' });
+      return;
     }
-};
 
-export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
-    // verifica si el usuario adjuntado por 'authenticate' es admin
-    if (req.user?.role !== 'admin') {
-        return res.status(403).json({ message: 'Acceso denegado. Se requieren permisos de administrador.' });
+    const result = await jwtService.checkAuthentication(token);
+
+    if (!result.authenticated || !result.user) {
+      res.status(401).json({ message: result.message || 'Token inválido o expirado.' });
+      return;
     }
+
+    (req as any).user = result.user;
     next();
+  } catch (error) {
+    res.status(401).json({ message: 'Token inválido.' });
+  }
 };
 
+export const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  const user = (req as any).user;
 
-/* 
-Nota:
-authenticate =  se ejecuta en cada solicitud a rutas protegidas
-requireAdmin =  se ejecuta solo en rutas que requieren permisos de administrador
-el orden de ejecución es secuencial: primero authenticate, luego requireAdmin, finalmente el controlador
-si cualquier middleware falla, la solicitud se rechaza inmediatamente , los middlewares son reutilizables across múltiples rutas
-Este flujo garantiza que solo usuarios autenticados (y con los permisos adecuados) puedan acceder a rutas protegidas.
-*/
+  if (!user || user.role !== 'admin') {
+    res.status(403).json({ message: 'Acceso denegado. Se requieren permisos de administrador.' });
+    return;
+  }
+  next();
+};
