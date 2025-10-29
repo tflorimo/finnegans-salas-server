@@ -19,24 +19,17 @@ const User = sequelize.define
 			},
 		},
 
-		name: {
-			type: DataTypes.STRING,
-			allowNull: true,
-		},
+	name: {
+		type: DataTypes.STRING,
+		allowNull: true,
+	},
 
-		/* Al iniciar sesión, si el email está en ADMIN_EMAILS, el rol será admin. Si Google envía refresh_token, se guarda en la BD para no depender de variables de entorno ni reinicios de servidor. */
-		refreshToken: { 
-			type: DataTypes.STRING,
-			allowNull: true,
-		},
 
-		role: {
-			type: DataTypes.ENUM('admin', 'user'),
-			allowNull: false,
-			defaultValue: 'user',
-		},
-
-	}, {
+	role: {
+		type: DataTypes.ENUM('admin', 'user'),
+		allowNull: false,
+		defaultValue: 'user',
+	},	}, {
 		timestamps: true,
 		paranoid: true, // borrado logico
 		tableName: 'users',
