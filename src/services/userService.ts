@@ -45,19 +45,6 @@ class UserService {
     };
   }
 
-  async updateRefreshToken(email: string, refreshToken: string): Promise<void> {
-    await User.update({ refreshToken }, { where: { email } });
-  }
-
-  async getRefreshToken(email: string): Promise<string | null> {
-    const user = await User.findOne({ where: { email } });
-    if (!user) {
-      return null;
-    }
-    const userData = user.get({ plain: true }) as UserAttributes;
-    return userData.refreshToken || null;
-  }
-
   determineUserRole(email: string): UserRole {
     const admins = (process.env.ADMIN_EMAILS || "")
       .split(",")
