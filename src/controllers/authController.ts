@@ -1,14 +1,11 @@
 import { Request, Response } from "express";
-import { getTokenStatus } from "../config/googleCalendar";
 import authService from "../services/authService";
 import jwtService from "../services/jwtService";
 
 class AuthController {
   async authRedirect(req: Request, res: Response): Promise<void> {
     try {
-      const userEmail = req.query.email as string | undefined;
-      
-      const authUrl = await authService.generateAuthenticationUrl({ userEmail });
+      const authUrl = authService.generateAuthenticationUrl();
       res.redirect(authUrl);
     } catch (error) {
       console.error("Error generating auth URL:", error);
@@ -31,33 +28,14 @@ class AuthController {
         return;
       }
 
-      const result = await authService.processOAuthCallback(code);
-
-      if (result.shouldRedirectToConsent) {
-        res.redirect(result.consentUrl!);
-        return;
-      }
-
-      res.redirect(result.redirectUrl!);
+      const redirectUrl = await authService.processOAuthCallback(code);
+      res.redirect(redirectUrl);
     } catch (error) {
       console.error("Error en callback de OAuth2:", error);
       res.status(500).json({
         success: false,
         message: "Error en el proceso de autenticación",
         details: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
-
-  async tokenStatus(req: Request, res: Response): Promise<void> {
-    try {
-      const status = getTokenStatus();
-      res.json(status);
-    } catch (error) {
-      console.error("Error verificando tokens:", error);
-      res.status(500).json({
-        success: false,
-        message: "Error verificando tokens",
       });
     }
   }
