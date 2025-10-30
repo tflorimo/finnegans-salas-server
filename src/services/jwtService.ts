@@ -1,49 +1,50 @@
 import jwt from "jsonwebtoken";
-import userService from "./userService";
-import {
-  JWTPayload,
-  AuthCheckResult,
-} from "../models/user.types";
+import { UserRole } from "../models/user.types";
 
-class JwtService {
-  generateToken(userId: number, email: string, role: string): string {
+export class JwtService {
+  // TODO: Definir cada cuanto tiempo expiran y se renuevan los tokens
+  private readonly ACCESS_TTL = "15m"; 
+  private readonly REFRESH_TTL = "30d";
+
+  private getAccessSecret(): string {
+    const secret = process.env.JWT_ACCESS_SECRET;
+    if (!secret) throw new Error("JWT_ACCESS_SECRET no está configurada");
+    return secret;
+  }
+
+  private getRefreshSecret(): string {
+    const secret = process.env.JWT_REFRESH_SECRET;
+    if (!secret) throw new Error("JWT_REFRESH_SECRET no está configurada");
+    return secret;
+  }
+
+  generateAccessToken(id: number, email: string, role: UserRole): string {
     return jwt.sign(
-      { id: userId, email, role },
-      process.env.JWT_SECRET || "secret",
-      { expiresIn: "8h" }
+      { sub: id, email, role },
+      this.getAccessSecret(),
+      { expiresIn: this.ACCESS_TTL }
     );
   }
 
-  private verifyToken(token: string): JWTPayload {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "secret"
-    ) as JWTPayload;
-    return decoded;
+  generateRefreshToken(id: number): string {
+    return jwt.sign(
+      { sub: id },
+      this.getRefreshSecret(),
+      { expiresIn: this.REFRESH_TTL }
+    );
   }
 
-  async checkAuthentication(token: string): Promise<AuthCheckResult> {
-    try {
-      const decoded = this.verifyToken(token);
-      const user = await userService.findUserById(decoded.id);
-      
-      if (!user) {
-        return {
-          authenticated: false,
-          message: "Usuario no encontrado",
-        };
-      }
+  verifyAccess(token: string): jwt.JwtPayload {
+    return jwt.verify(token, this.getAccessSecret()) as jwt.JwtPayload;
+  }
 
-      return {
-        authenticated: true,
-        user,
-      };
-    } catch (error) {
-      return {
-        authenticated: false,
-        message: "Token no válido.",
-      };
-    }
+  verifyRefresh(token: string): jwt.JwtPayload {
+    return jwt.verify(token, this.getRefreshSecret()) as jwt.JwtPayload;
+  }
+
+  decodeToken(token: string): jwt.JwtPayload | null {
+    const decoded = jwt.decode(token);
+    return decoded && typeof decoded !== "string" ? decoded : null;
   }
 }
 
