@@ -1,36 +1,33 @@
 import User from "../models/user";
 import {
-  UserData,
-  AuthenticatedUser,
+  UserBase,
   UserRole,
   UserAttributes,
 } from "../models/user.types";
 
 class UserService {
-  async findUserById(id: number): Promise<AuthenticatedUser | null> {
+  async findUserById(id: number): Promise<UserAttributes | null> {
     const user = await User.findByPk(id);
     
     if (!user) {
       return null;
     }
 
-    const userData = user.get({ plain: true }) as UserAttributes;
+    const userBase = user.get({ plain: true }) as UserAttributes;
     return {
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-      picture: userData.picture,
-      role: userData.role,
+      id: userBase.id,
+      email: userBase.email,
+      name: userBase.name,
+      role: userBase.role,
     };
   }
 
-  async upsertUser(userData: UserData): Promise<AuthenticatedUser> {
+  async upsertUser(userBase: UserBase): Promise<UserAttributes> {
     const [user] = await User.upsert(
       {
-        email: userData.email,
-        name: userData.name,
-        picture: userData.picture,
-        role: userData.role,
+        email: userBase.email,
+        name: userBase.name,
+        role: userBase.role,
       },
       { returning: true }
     );
@@ -40,7 +37,6 @@ class UserService {
       id: plainUser.id,
       email: plainUser.email,
       name: plainUser.name,
-      picture: plainUser.picture,
       role: plainUser.role,
     };
   }
