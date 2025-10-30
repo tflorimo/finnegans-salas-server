@@ -1,45 +1,58 @@
-import { Request, Response, CookieOptions } from "express";
+import { Request, Response } from "express";
 import authService from "../services/authService";
 import jwtService from "../services/jwtService";
 import userService from "../services/userService";
-
-const isProd = process.env.NODE_ENV === "production";
-const cookieOptions: CookieOptions = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? "none" : "lax",
-  path: "/api/auth/refresh",
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-};
+import {
+  refreshCookieName,
+  setRefreshCookie,
+  clearRefreshCookie,
+} from "../config/authCookies";
+import { isOAuthAccessDeniedError } from "../config/oAuthAccess";
+import { buildFrontendCallbackUrl } from "../utils/frontendRedirect";
 
 class AuthController {
-  authRedirect(req: Request, res: Response): void {
-    const authUrl = authService.generateAuthenticationUrl();
-    res.redirect(authUrl);
-  }
+  authRedirect = (_: Request, res: Response): void => {
+    res.redirect(authService.generateAuthenticationUrl());
+  };
 
-  async oauth2Callback(req: Request, res: Response): Promise<void> {
-
+  oauth2Callback = async (req: Request, res: Response): Promise<void> => {
     const { code } = req.query;
-    if (!code || typeof code !== "string") {
-      res.status(400).json({ success: false, message: "codigo_no_proporcionado" });
+
+    if (typeof code !== "string") {
+      const redirectUrl = buildFrontendCallbackUrl({
+        success: "false",
+        message: "codigo_no_proporcionado",
+      });
+      res.redirect(302, redirectUrl);
       return;
     }
 
     try {
       const { refreshToken, redirectUrl } = await authService.processOAuthCallback(code);
-
-      res.cookie("rt", refreshToken, cookieOptions);
-      res.redirect(redirectUrl ?? "/");
+      setRefreshCookie(res, refreshToken);
+      res.redirect(302, redirectUrl);
     } catch (error) {
+      if (isOAuthAccessDeniedError(error)) {
+        console.warn("[oauth2Callback] acceso denegado:", error.reason);
+        const redirectUrl = buildFrontendCallbackUrl({
+          success: "false",
+          message: error.reason,
+        });
+        res.redirect(302, redirectUrl);
+        return;
+      }
+
       console.error("[oauth2Callback] error", error);
-      res.status(500).json({ success: false, message: "oauth_failed" });
+      const redirectUrl = buildFrontendCallbackUrl({
+        success: "false",
+        message: "oauth_failed",
+      });
+      res.redirect(302, redirectUrl);
     }
-  }
+  };
 
-  async checkAuth(req: Request, res: Response): Promise<void> {
+  checkAuth = async (req: Request, res: Response): Promise<void> => {
     const token = req.header("Authorization")?.replace("Bearer ", "");
-
     if (!token) {
       res.status(401).json({ authenticated: false, message: "no_token" });
       return;
@@ -47,64 +60,64 @@ class AuthController {
 
     try {
       const payload = jwtService.verifyAccess(token);
+      const userId = jwtService.extractSubjectId(payload);
 
-      if (!payload || typeof payload.sub !== "number") {
+      if (!userId) {
         res.status(401).json({ authenticated: false, message: "invalid_token" });
         return;
       }
 
-      const user = await userService.findUserById(payload.sub);
+      const user = await userService.findUserById(userId);
       if (!user) {
         res.status(401).json({ authenticated: false, message: "user_not_found" });
         return;
       }
 
+      (req as any).user = user;
       res.status(200).json({ authenticated: true, user });
     } catch (error) {
       console.error("[checkAuth] error", error);
       res.status(401).json({ authenticated: false, message: "invalid_token" });
     }
-  }
+  };
 
-  async refresh(req: Request, res: Response): Promise<void> {
-
-    const rt = req.cookies?.rt;
-    if (!rt) {
+  refresh = async (req: Request, res: Response): Promise<void> => {
+    const refreshToken = req.cookies?.[refreshCookieName];
+    if (!refreshToken) {
       res.status(401).json({ code: "no_refresh" });
       return;
     }
 
     try {
-      const payload = jwtService.verifyRefresh(rt);
+      const payload = jwtService.verifyRefresh(refreshToken);
+      const userId = jwtService.extractSubjectId(payload);
 
-      if (!payload || typeof payload.sub !== "number") {
+      if (!userId) {
         res.status(401).json({ code: "refresh_invalid" });
         return;
       }
 
-      const user = await userService.findUserById(payload.sub);
+      const user = await userService.findUserById(userId);
       if (!user) {
         res.status(401).json({ code: "user_not_found" });
         return;
       }
 
       const accessToken = jwtService.generateAccessToken(user.id, user.email, user.role);
-      const newRefresh = jwtService.generateRefreshToken(user.id);
+      const newRefreshToken = jwtService.generateRefreshToken(user.id);
 
-      res.cookie("rt", newRefresh, cookieOptions);
-      console.log("[refresh] issued new tokens for", user.email);
-
+      setRefreshCookie(res, newRefreshToken);
       res.status(200).json({ accessToken });
     } catch (error) {
       console.error("[refresh] error", error);
       res.status(401).json({ code: "refresh_invalid" });
     }
-  }
+  };
 
-  logout(req: Request, res: Response): void {
-    res.clearCookie("rt", { path: cookieOptions.path, sameSite: cookieOptions.sameSite, secure: cookieOptions.secure });
+  logout = (_: Request, res: Response): void => {
+    clearRefreshCookie(res);
     res.status(204).send();
-  }
+  };
 }
 
 export default new AuthController();
