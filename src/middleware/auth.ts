@@ -1,46 +1,53 @@
-import { Request, Response, NextFunction  } from "express";
+import { Request, Response, NextFunction } from "express";
 import jwtService from "../services/jwtService";
 
-// Esta autenticación sólo verifica el token del user para las rutas de eventos y salas.
+type AuthenticatedRequest = Request & {
+  user?: {
+    id: number;
+    email: string;
+    role: string;
+  };
+};
+
 export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.header("Authorization");
-  if (!authHeader) { res.status(401).json({ code: "no_token" }); return; }
-
-  const token = authHeader.replace("Bearer ", "");
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ code: "no_token" });
+    return;
+  }
 
   try {
-    const payload = jwtService.verifyAccess(token);
-    (req as any).user = { id: Number(payload.sub), email: (payload as any).email, role: (payload as any).role };
-    
-    next();
+    const token = authHeader.slice("Bearer ".length);
+    const user = jwtService.verifyAccess(token);
 
-  } catch (e: any) {
-    if (e?.name === "TokenExpiredError") {
-      res.status(401).json({ code: "token_expired" });
-      return;
+    (req as AuthenticatedRequest).user = user;
+    next();
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === "TokenExpiredError") {
+        res.status(401).json({ code: "token_expired" });
+        return;
+      }
+
+      if (error.message === "INVALID_ACCESS_TOKEN_CLAIMS") {
+        res.status(401).json({ code: "token_invalid" });
+        return;
+      }
     }
+
     res.status(401).json({ code: "token_invalid" });
   }
 };
 
-// Esta autenticación verifica que el user sea admin para acceder a getAllEvents y en un futuro a logs.
-export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const authHeader = req.header("Authorization");
+export const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  const user = (req as AuthenticatedRequest).user;
 
-  if (!authHeader) {
-    res.status(401).json({ message: "Acceso denegado. No hay token proporcionado." });
+  if (!user) {
+    res.status(401).json({ message: "Acceso denegado. No autenticado." });
     return;
   }
 
-  const token = authHeader.replace("Bearer ", "");
-  const result = jwtService.verifyAccess(token);
-
-  if (!result || !result.sub) {
-    res.status(401).json({ message: result.message || "Token inválido o expirado." });
-    return;
-  }
-
-  if (result.role !== "admin") {
+  if (user.role !== "admin") {
     res.status(403).json({ message: "Acceso denegado. Se requieren permisos de administrador." });
     return;
   }
