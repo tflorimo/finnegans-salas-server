@@ -2,8 +2,10 @@ import { google } from "googleapis";
 import { oauth2Client } from "../config/googleOAuth";
 import userService from "./userService";
 import JwtService from "./jwtService";
+import { ensureOAuthAccess } from "../config/oAuthAccess";
 
 const oauth2 = google.oauth2("v2");
+
 class AuthService {
   generateAuthenticationUrl(): string {
     return oauth2Client.generateAuthUrl({
@@ -24,26 +26,38 @@ class AuthService {
     oauth2Client.setCredentials(tokens);
 
     const { data: profile } = await oauth2.userinfo.get({ auth: oauth2Client });
-    if (!profile.email) throw new Error("No se pudo obtener el email de Google");
+    const email = profile.email?.toLowerCase();
 
-    const role = userService.determineUserRole(profile.email);
-    const user = await userService.upsertUser({ email: profile.email, name: profile.name || "", role });
+    if (!email) {
+      throw new Error("No se pudo obtener el email de Google");
+    }
+
+    // Donde se verifica si el usuario tiene acceso permitido, por ahora, sólo los dominios. 
+    ensureOAuthAccess(email);
+
+    const role = userService.determineUserRole(email);
+    const user = await userService.upsertUser({
+      email,
+      name: profile.name ?? "",
+      role,
+    });
 
     const accessToken = JwtService.generateAccessToken(user.id, user.email, user.role);
     const refreshToken = JwtService.generateRefreshToken(user.id);
 
     const frontendURL = process.env.FRONTEND_URL!;
     const queryParams = new URLSearchParams({
+      success: "true",
       token: accessToken,
-      email: profile.email,
-      name: profile.name || "",
+      email: user.email,
+      name: user.name,
       role,
     });
 
     return {
       accessToken,
       refreshToken,
-      redirectUrl: `${frontendURL}/auth/callback?${queryParams.toString()}`
+      redirectUrl: `${frontendURL}/auth/callback?${queryParams.toString()}`,
     };
   }
 }
