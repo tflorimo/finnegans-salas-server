@@ -33,7 +33,6 @@ class AuthController {
       res.redirect(302, redirectUrl);
     } catch (error) {
       if (isOAuthAccessDeniedError(error)) {
-        console.warn("[oauth2Callback] acceso denegado:", error.reason);
         const redirectUrl = buildFrontendCallbackUrl({
           success: "false",
           message: error.reason,
@@ -42,7 +41,6 @@ class AuthController {
         return;
       }
 
-      console.error("[oauth2Callback] error", error);
       const redirectUrl = buildFrontendCallbackUrl({
         success: "false",
         message: "oauth_failed",
@@ -76,7 +74,6 @@ class AuthController {
       (req as any).user = user;
       res.status(200).json({ authenticated: true, user });
     } catch (error) {
-      console.error("[checkAuth] error", error);
       res.status(401).json({ authenticated: false, message: "invalid_token" });
     }
   };
@@ -109,7 +106,6 @@ class AuthController {
       setRefreshCookie(res, newRefreshToken);
       res.status(200).json({ accessToken });
     } catch (error) {
-      console.error("[refresh] error", error);
       res.status(401).json({ code: "refresh_invalid" });
     }
   };
