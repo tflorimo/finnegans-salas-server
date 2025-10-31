@@ -1,12 +1,29 @@
 import { Model } from "sequelize";
 import Event from "../models/event";
-import { EventDTO } from "../dtos/eventDTO";
+import { EventDTO, EventDTOResponse } from "../dtos/eventDTO";
+import { AttendeeDTO } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
 
 class EventService {
 
-    async getAllEvents(): Promise<Model[]> {
-        return Event.findAll();
+    async getAllEvents(): Promise<EventDTOResponse[]> {
+        const eventos: Model[] = await Event.findAll();
+        let eventosDTO: EventDTOResponse[] = [];
+        for (const evento of eventos) {
+            let tempEventDTO: EventDTOResponse = {
+                id: evento.get('id') as string,
+                creatorMail: evento.get('creatorMail') as string,
+                roomEmail: evento.get('roomEmail') as string,
+                startTime: evento.get('startTime') as Date,
+                title: evento.get('title') as string,
+                endTime: evento.get('endTime') as Date,
+                checkedIn: evento.get('checkedIn') as boolean,
+                attendees: evento.get('attendees') as AttendeeDTO[],
+                roomName: evento.get('roomName') as string,
+            };
+            eventosDTO.push(tempEventDTO);
+        }
+        return eventosDTO;
     }
 
     async getEventById(id: string): Promise<Model | null> {
