@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import routes from './routes';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 // setup de CORS
@@ -11,8 +12,8 @@ app.use(
   })
 );
 
+app.use(cookieParser());
 app.use(express.json());
-
 app.use('/api', routes);
 
 export default app;
