@@ -1,94 +1,119 @@
 import { Request, Response } from "express";
 import authService from "../services/authService";
 import jwtService from "../services/jwtService";
+import userService from "../services/userService";
+import {
+  refreshCookieName,
+  setRefreshCookie,
+  clearRefreshCookie,
+} from "../config/authCookies";
+import { isOAuthAccessDeniedError } from "../config/oAuthAccess";
+import { buildFrontendCallbackUrl } from "../utils/frontendRedirect";
 
 class AuthController {
-  async authRedirect(req: Request, res: Response): Promise<void> {
-    try {
-      const authUrl = authService.generateAuthenticationUrl();
-      res.redirect(authUrl);
-    } catch (error) {
-      console.error("Error generating auth URL:", error);
-      res.status(500).json({
-        success: false,
-        message: "Error generating authentication URL",
+  authRedirect = (_: Request, res: Response): void => {
+    res.redirect(authService.generateAuthenticationUrl());
+  };
+
+  oauth2Callback = async (req: Request, res: Response): Promise<void> => {
+    const { code } = req.query;
+
+    if (typeof code !== "string") {
+      const redirectUrl = buildFrontendCallbackUrl({
+        success: "false",
+        message: "codigo_no_proporcionado",
       });
+      res.redirect(302, redirectUrl);
+      return;
     }
-  }
 
-  async oauth2Callback(req: Request, res: Response): Promise<void> {
     try {
-      const { code } = req.query;
-
-      if (!code || typeof code !== "string") {
-        res.status(400).json({
-          success: false,
-          message: "Código de autorización no proporcionado",
+      const { refreshToken, redirectUrl } = await authService.processOAuthCallback(code);
+      setRefreshCookie(res, refreshToken);
+      res.redirect(302, redirectUrl);
+    } catch (error) {
+      if (isOAuthAccessDeniedError(error)) {
+        const redirectUrl = buildFrontendCallbackUrl({
+          success: "false",
+          message: error.reason,
         });
+        res.redirect(302, redirectUrl);
         return;
       }
 
-      const redirectUrl = await authService.processOAuthCallback(code);
-      res.redirect(redirectUrl);
-    } catch (error) {
-      console.error("Error en callback de OAuth2:", error);
-      res.status(500).json({
-        success: false,
-        message: "Error en el proceso de autenticación",
-        details: error instanceof Error ? error.message : "Unknown error",
+      const redirectUrl = buildFrontendCallbackUrl({
+        success: "false",
+        message: "oauth_failed",
       });
+      res.redirect(302, redirectUrl);
     }
-  }
+  };
 
-  async checkAuth(req: Request, res: Response): Promise<void> {
+  checkAuth = async (req: Request, res: Response): Promise<void> => {
+    const token = req.header("Authorization")?.replace("Bearer ", "");
+    if (!token) {
+      res.status(401).json({ authenticated: false, message: "no_token" });
+      return;
+    }
+
     try {
-      const token = req.header("Authorization")?.replace("Bearer ", "");
+      const payload = jwtService.verifyAccess(token);
+      const userId = jwtService.extractSubjectId(payload);
 
-      if (!token) {
-        res.status(401).json({
-          authenticated: false,
-          message: "No hay token proporcionado",
-        });
+      if (!userId) {
+        res.status(401).json({ authenticated: false, message: "invalid_token" });
         return;
       }
 
-      const result = await jwtService.checkAuthentication(token);
-
-      if (!result.authenticated) {
-        res.status(401).json({
-          authenticated: false,
-          message: result.message || "Token inválido",
-        });
+      const user = await userService.findUserById(userId);
+      if (!user) {
+        res.status(401).json({ authenticated: false, message: "user_not_found" });
         return;
       }
 
-      res.json({
-        authenticated: true,
-        user: result.user,
-      });
+      (req as any).user = user;
+      res.status(200).json({ authenticated: true, user });
     } catch (error) {
-      console.error("Error verificando autenticación:", error);
-      res.status(401).json({
-        authenticated: false,
-        message: "Token inválido",
-      });
+      res.status(401).json({ authenticated: false, message: "invalid_token" });
     }
-  }
+  };
 
-  async logout(req: Request, res: Response): Promise<void> {
-    try {
-      res.json({
-        success: true,
-        message: "Sesión cerrada correctamente",
-      });
-    } catch (error) {
-      console.error("Error en logout:", error);
-      res.status(500).json({
-        success: false,
-        message: "Error al cerrar sesión",
-      });
+  refresh = async (req: Request, res: Response): Promise<void> => {
+    const refreshToken = req.cookies?.[refreshCookieName];
+    if (!refreshToken) {
+      res.status(401).json({ code: "no_refresh" });
+      return;
     }
-  }
+
+    try {
+      const payload = jwtService.verifyRefresh(refreshToken);
+      const userId = jwtService.extractSubjectId(payload);
+
+      if (!userId) {
+        res.status(401).json({ code: "refresh_invalid" });
+        return;
+      }
+
+      const user = await userService.findUserById(userId);
+      if (!user) {
+        res.status(401).json({ code: "user_not_found" });
+        return;
+      }
+
+      const accessToken = jwtService.generateAccessToken(user.id, user.email, user.role);
+      const newRefreshToken = jwtService.generateRefreshToken(user.id);
+
+      setRefreshCookie(res, newRefreshToken);
+      res.status(200).json({ accessToken });
+    } catch (error) {
+      res.status(401).json({ code: "refresh_invalid" });
+    }
+  };
+
+  logout = (_: Request, res: Response): void => {
+    clearRefreshCookie(res);
+    res.status(204).send();
+  };
 }
 
 export default new AuthController();

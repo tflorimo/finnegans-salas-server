@@ -1,7 +1,8 @@
 import { google } from "googleapis";
 import { oauth2Client } from "../config/googleOAuth";
 import userService from "./userService";
-import jwtService from "./jwtService";
+import JwtService from "./jwtService";
+import { ensureOAuthAccess } from "../config/oAuthAccess";
 
 const oauth2 = google.oauth2("v2");
 
@@ -16,38 +17,48 @@ class AuthService {
     });
   }
 
-  async processOAuthCallback(code: string): Promise<string> {
+  async processOAuthCallback(code: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    redirectUrl: string;
+  }> {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
     const { data: profile } = await oauth2.userinfo.get({ auth: oauth2Client });
+    const email = profile.email?.toLowerCase();
 
-    if (!profile.email) {
+    if (!email) {
       throw new Error("No se pudo obtener el email de Google");
     }
 
-    const role = userService.determineUserRole(profile.email);
+    // Donde se verifica si el usuario tiene acceso permitido, por ahora, sólo los dominios. 
+    ensureOAuthAccess(email);
+
+    const role = userService.determineUserRole(email);
     const user = await userService.upsertUser({
-      email: profile.email,
-      name: profile.name || "",
-      picture: profile.picture || "",
-      role
+      email,
+      name: profile.name ?? "",
+      role,
     });
 
-    const frontendURL = process.env.FRONTEND_URL;
-    if (!frontendURL) {
-      throw new Error("FRONTEND_URL no está configurada");
-    }
+    const accessToken = JwtService.generateAccessToken(user.id, user.email, user.role);
+    const refreshToken = JwtService.generateRefreshToken(user.id);
 
-    const appToken = jwtService.generateToken(user.id, profile.email, role);
+    const frontendURL = process.env.FRONTEND_URL!;
     const queryParams = new URLSearchParams({
-      token: appToken,
-      email: profile.email,
-      name: profile.name || "",
-      role: role
+      success: "true",
+      token: accessToken,
+      email: user.email,
+      name: user.name,
+      role,
     });
 
-    return `${frontendURL}/auth/callback?${queryParams.toString()}`;
+    return {
+      accessToken,
+      refreshToken,
+      redirectUrl: `${frontendURL}/auth/callback?${queryParams.toString()}`,
+    };
   }
 }
 

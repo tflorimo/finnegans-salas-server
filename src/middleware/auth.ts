@@ -1,35 +1,56 @@
 import { Request, Response, NextFunction } from "express";
 import jwtService from "../services/jwtService";
 
-export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+type AuthenticatedRequest = Request & {
+  user?: {
+    id: number;
+    email: string;
+    role: string;
+  };
+};
+
+export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
+  const authHeader = req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ code: "no_token" });
+    return;
+  }
+
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const token = authHeader.slice("Bearer ".length);
+    const user = jwtService.verifyAccess(token);
 
-    if (!token) {
-      res.status(401).json({ message: 'Acceso denegado. No hay token proporcionado.' });
-      return;
-    }
-
-    const result = await jwtService.checkAuthentication(token);
-
-    if (!result.authenticated || !result.user) {
-      res.status(401).json({ message: result.message || 'Token inválido o expirado.' });
-      return;
-    }
-
-    (req as any).user = result.user;
+    (req as AuthenticatedRequest).user = user;
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Token inválido.' });
+    if (error instanceof Error) {
+      if (error.name === "TokenExpiredError") {
+        res.status(401).json({ code: "token_expired" });
+        return;
+      }
+
+      if (error.message === "INVALID_ACCESS_TOKEN_CLAIMS") {
+        res.status(401).json({ code: "token_invalid" });
+        return;
+      }
+    }
+
+    res.status(401).json({ code: "token_invalid" });
   }
 };
 
 export const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
-  const user = (req as any).user;
+  const user = (req as AuthenticatedRequest).user;
 
-  if (!user || user.role !== 'admin') {
-    res.status(403).json({ message: 'Acceso denegado. Se requieren permisos de administrador.' });
+  if (!user) {
+    res.status(401).json({ message: "Acceso denegado. No autenticado." });
     return;
   }
+
+  if (user.role !== "admin") {
+    res.status(403).json({ message: "Acceso denegado. Se requieren permisos de administrador." });
+    return;
+  }
+
   next();
 };
