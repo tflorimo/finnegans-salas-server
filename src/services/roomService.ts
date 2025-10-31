@@ -3,6 +3,7 @@ import Room from "../models/room";
 import Event from "../models/event";
 import { RoomDTO } from "../dtos/roomDTO";
 import type { RoomAttributes } from "../models/room.types";
+import { Attendee } from "../models/event.types";
 
 class RoomService {
 
@@ -36,13 +37,29 @@ class RoomService {
         return rooms.map(room => room.email);
     }
 
-    // retorna el id del evento actual de la sala
-    async getCurrentEventFromRoom(id: string): Promise<number | null> {
+    /** actualiza el current event de un room
+    * @param roomEmail el mail d la sala a actualizar
+    * @param eventId el eventId el evento que le vamos a poner a la sala como current event
+    */
+    async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<void> {
+        const room = await Room.findByPk(roomEmail);
+        if (room) {
+            if(room.get('current_event') !== eventId){
+                room.set('current_event', eventId);
+                await room.save();
+            }
+        }
+    }
+
+    /**
+     * @returns La sala correspondiente al id proporcionado, o null si no existe
+     */
+    async fetchRoom(id: string): Promise<Model | null> {
         const room =  await Room.findByPk(id);
-        if (!room || !room.current_event) {
+        if (!room) {
             return null;
         }
-        return room.current_event;
+        return room;
     }
 
     async checkInCurrentEvent(id: string, userEmail: string): Promise<{ success: boolean; event?: Model | null; message?: string }> {
@@ -50,11 +67,25 @@ class RoomService {
         const respuesta = {
             success: false,
             event: null as Model | null,
-            message: 'msg a enviar'
+            message: 'template de mensaje'
         }
 
-        const currentEventId = await this.getCurrentEventFromRoom(id);
-        const event = await Event.findByPk(currentEventId as any);
+        const currentRoom = await this.fetchRoom(id); // buscamos la sala que nos llega
+
+        // si la sala existe, entonces buscamos el evento actual de la sala
+        if(!currentRoom) {
+            respuesta.message = 'Sala no encontrada';
+            return respuesta;
+        }
+
+        const currentEventId = currentRoom.get('current_event') as string | null;
+
+        if(!currentEventId) {
+            respuesta.message = 'No hay un evento actual en esta sala para hacer checkin';
+            return respuesta;
+        }
+
+        const event = await Event.findByPk(currentEventId);
 
         if (!event) {
             respuesta.message = 'Evento no encontrado';
@@ -66,9 +97,10 @@ class RoomService {
             return respuesta;
         }
 
-        const attendees = event.get('attendees') as string[] | null;
+        // Attendees no es array de strings, es DTO
+        const attendeesDTO = event.get('attendees') as Attendee[] | null;
 
-        if(attendees && !attendees.includes(userEmail)) {
+        if(attendeesDTO && !attendeesDTO.some(attendee => attendee.email === userEmail)) {
             respuesta.message = "Para poder hacer checkin, debes estar como asistente del evento!";
             return respuesta;
         }

@@ -14,6 +14,7 @@ export type ResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsActio
 export interface AttendeeDTO {
     email: string;
     responseStatus: ResponseStatus;
+    resource: boolean;
 }
 
 export interface EventDTO {

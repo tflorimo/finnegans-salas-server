@@ -3,6 +3,7 @@ import { ResponseStatus } from "../dtos/eventDTO";
 export interface Attendee {
     email: string;
     responseStatus: ResponseStatus;
+    resource: boolean;
 }
 
 export interface EventAttributes {

@@ -2,7 +2,6 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 import { Attendee, EventAttributes } from "./event.types";
 import Room from "./room";
-import User from "./user";
 
 export class Event extends Model<EventAttributes> implements EventAttributes {
     public id!: string;
@@ -27,12 +26,10 @@ Event.init(
             primaryKey: true,
             autoIncrement: false
         },
-
         creatorMail: {
             type: DataTypes.STRING,
             allowNull: false,
         },
-
         /**
          * @todo ver nota de abajo
          */
@@ -44,7 +41,6 @@ Event.init(
                 key: 'email'
             }
         },
-
         startTime: {
             type: DataTypes.DATE,
             allowNull: false,
@@ -54,12 +50,11 @@ Event.init(
             type: DataTypes.STRING,
             allowNull: false,
         },
-
+        
         endTime: {
             type: DataTypes.DATE,
             allowNull: false,
         },
-
         checkedIn: {
             type: DataTypes.BOOLEAN,   // sirve para identificar que eventos no dieron checkin y de esa manera eliminarlos del calendar y de la bd pasado los 15 min con los jobs
             defaultValue: false,
