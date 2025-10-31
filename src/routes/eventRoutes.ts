@@ -6,6 +6,5 @@ const router = Router();
 
 router.get('/', authenticate, requireAdmin, EventController.getAllEvents);
 router.get('/:id', authenticate, EventController.getEventById);
-// router.patch('/:id/checkin', EventController.checkInEvent);
 
 export default router;

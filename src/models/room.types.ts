@@ -6,6 +6,7 @@ export interface RoomAttributes {
     floor: string;
     type: string;
     is_busy: boolean;
+    current_event: string | null;
     resources: string[] | null; 
     createdAt?: Date;
     updatedAt?: Date;

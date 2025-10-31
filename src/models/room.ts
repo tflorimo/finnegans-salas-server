@@ -1,6 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 import { RoomAttributes } from "./room.types";
+import { Event } from "./event";
 
 export class Room extends Model<RoomAttributes> implements RoomAttributes {
     public email!: string;
@@ -10,6 +11,7 @@ export class Room extends Model<RoomAttributes> implements RoomAttributes {
     public floor!: string;
     public type!: string;
     public is_busy!: boolean;
+    public current_event!: string | null;
     public resources!: string[] | null;
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
@@ -56,10 +58,20 @@ Room.init(
             allowNull: false,
         },
 
+        current_event: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            references: {
+                model: Event,
+                key: 'id'
+            }
+        },
+
         resources: {
             type: DataTypes.JSON,
             allowNull: true,
         },
+
     },
     {   
         sequelize,
@@ -72,5 +84,7 @@ Room.init(
             { fields: ['name'] },
         ],
     });
+
+Room.belongsTo(Event, { foreignKey: 'current_event', targetKey: 'id', as: 'currentEvent' });
 
 export default Room;

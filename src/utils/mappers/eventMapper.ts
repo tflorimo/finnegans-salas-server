@@ -4,7 +4,8 @@ export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): Ev
 
     const attendees: AttendeeDTO[] = eventResponse.attendees.map((attendee: any) => ({
         email: attendee.email,
-        responseStatus: attendee.responseStatus
+        responseStatus: attendee.responseStatus,
+        resource: attendee.resource || false,
     }));
 
     return {

@@ -36,7 +36,34 @@ class RoomController {
                 message: error instanceof Error ? error.message : 'Error no conocido'
             });
         }
-    }       
+    }
+    
+    async checkIn(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            const { userEmail } = req.body.user; 
+            const resultado = await this.roomService.checkInCurrentEvent(id, userEmail);
+            if (!resultado.success) {
+                res.status(400).json({
+                    error: "Hubo un error al intentar hacer checkin del evento actual de la sala",
+                    message: resultado.message
+                });
+                return;
+            }
+
+            res.status(200).json({
+                message: 'Checkin realizado con éxito',
+                event: resultado.event
+            });
+        
+        } catch (error) {
+            res.status(500).json({
+                error: 'Error al hacer checkin en el evento',
+                message: error instanceof Error ? error.message : 'Error no conocido'
+            });
+        }
+
+    }
 
 };
 
