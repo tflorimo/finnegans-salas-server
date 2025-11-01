@@ -1,5 +1,6 @@
 import { Model } from "sequelize";
 import Event from "../models/event";
+import Room from "../models/room";
 import { EventDTO, EventDTOResponse } from "../dtos/eventDTO";
 import { AttendeeDTO } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
@@ -7,23 +8,28 @@ import { EventAttributes } from "../models/event.types";
 class EventService {
 
     async getAllEvents(): Promise<EventDTOResponse[]> {
-        const eventos: Model[] = await Event.findAll();
-        let eventosDTO: EventDTOResponse[] = [];
-        for (const evento of eventos) {
-            let tempEventDTO: EventDTOResponse = {
-                id: evento.get('id') as string,
-                creatorMail: evento.get('creatorMail') as string,
-                roomEmail: evento.get('roomEmail') as string,
-                startTime: evento.get('startTime') as Date,
-                title: evento.get('title') as string,
-                endTime: evento.get('endTime') as Date,
-                checkedIn: evento.get('checkedIn') as boolean,
-                attendees: evento.get('attendees') as AttendeeDTO[],
-                roomName: evento.get('roomName') as string,
+        const eventos = await Event.findAll({
+            include: [{
+                model: Room,
+                attributes: ['name']
+            }]
+        });
+
+        return eventos.map(evento => {
+            const room = (evento as any).Room; 
+            
+            return {
+                id: evento.id,
+                creatorMail: evento.creatorMail,
+                roomEmail: evento.roomEmail,
+                startTime: evento.startTime,
+                title: evento.title,
+                endTime: evento.endTime,
+                checkedIn: evento.checkedIn,
+                attendees: evento.attendees as AttendeeDTO[],
+                roomName: room ? room.name : 'Sala no encontrada',
             };
-            eventosDTO.push(tempEventDTO);
-        }
-        return eventosDTO;
+        });
     }
 
     async getEventById(id: string): Promise<Model | null> {
