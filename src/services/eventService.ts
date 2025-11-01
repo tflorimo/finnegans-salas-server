@@ -1,13 +1,36 @@
 import { Model } from "sequelize";
 import Event from "../models/event";
-import { EventDTO } from "../dtos/eventDTO";
+import Room from "../models/room";
+import { EventDTO, EventDTOResponse } from "../dtos/eventDTO";
+import { AttendeeDTO } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
 import roomService from "./roomService";
 
 class EventService {
 
-    async getAllEvents(): Promise<Model[]> {
-        return Event.findAll();
+    async getAllEvents(): Promise<EventDTOResponse[]> {
+        const eventos = await Event.findAll({
+            include: [{
+                model: Room,
+                attributes: ['name']
+            }]
+        });
+
+        return eventos.map(evento => {
+            const room = (evento as any).Room; 
+            
+            return {
+                id: evento.id,
+                creatorMail: evento.creatorMail,
+                roomEmail: evento.roomEmail,
+                startTime: evento.startTime,
+                title: evento.title,
+                endTime: evento.endTime,
+                checkedIn: evento.checkedIn,
+                attendees: evento.attendees as AttendeeDTO[],
+                roomName: room ? room.name : 'Sala no encontrada',
+            };
+        });
     }
 
     async getEventById(id: string): Promise<Model | null> {
