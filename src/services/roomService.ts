@@ -4,16 +4,28 @@ import { RoomRequestDTO, RoomDTO } from "../dtos/roomDTO";
 import type { RoomAttributes } from "../models/room.types";
 import { Attendee } from "../models/event.types";
 import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
+import EventService  from "./eventService";
 class RoomService {
 
     async getAllRooms(): Promise<RoomRequestDTO[]> {
         const rooms = await Room.findAll();
-        return await Promise.all(rooms.map(room => mapRoomToRequestDTO(room)));
+        return Promise.all(
+            rooms.map(room => this.enrichRoomWithEvents(room))
+        );
     }
 
     async getRoomById(id: string): Promise<RoomRequestDTO | null> {
         const room = await Room.findByPk(id);
-        return room ? mapRoomToRequestDTO(room) : null;
+        return room ? this.enrichRoomWithEvents(room) : null;
+    }
+
+    private async enrichRoomWithEvents(room: Room): Promise<RoomRequestDTO> {
+        const mappedRoom = mapRoomToRequestDTO(room);
+        const eventos = await EventService.getEventsByRoomId(room.email);
+        return {
+            ...mappedRoom,
+            events: eventos
+        };
     }
 
     async upsertRoom(roomDTO: RoomDTO): Promise<void> {

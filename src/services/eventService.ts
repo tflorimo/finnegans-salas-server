@@ -1,7 +1,5 @@
-import { Model } from "sequelize";
 import { Event, Room } from "../models";
 import { EventDTO, EventDTOResponse } from "../dtos/eventDTO";
-import { AttendeeDTO } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
 import roomService from "./roomService";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
