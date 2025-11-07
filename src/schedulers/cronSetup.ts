@@ -1,9 +1,9 @@
-import { BorrarEventosJob } from "../jobs/borrarEventosJob";
 import { SyncCalendarEventsJob } from "../jobs/syncCalendarEvents";
+import { SyncRoomResourcesJob } from "../jobs/syncRoomResources";
 import cronScheduler from "./cronScheduler";
 
 export const setupJobs = () => {
-    const borrarEventos = new BorrarEventosJob();
+    const syncRoomResourcesJob = new SyncRoomResourcesJob();
     const syncCalendarEvents = new SyncCalendarEventsJob();
 
     cronScheduler.schedule({
@@ -16,19 +16,10 @@ export const setupJobs = () => {
     });
 
     cronScheduler.schedule({
-        name: 'Borrado de eventos sin checkin',
-        cronExpression: '*/10 * * * *', // Cada 10 minutos
-        task: async () => {
-            await borrarEventos.execute();
-        },
-        enabled: false
-    });
-
-    cronScheduler.schedule({
         name: 'Chequeo y sincronización de room resources',
         cronExpression: '0 */1 * * *', // Cada 1 hora
         task: async () => {
-            await borrarEventos.execute();
+            await syncRoomResourcesJob.execute();
         },
         enabled: true
     });
