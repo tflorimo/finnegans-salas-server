@@ -14,6 +14,8 @@
  * }
  */
 
+import { EventDTO } from "./eventDTO";
+
 export interface RoomResponseDTO {
     resourceEmail: string;
     resourceName: string;
@@ -33,4 +35,8 @@ export interface RoomDTO {
     floor: string;
     is_busy: boolean;
     resources: string[] | null;
+}
+export interface RoomRequestDTO extends RoomDTO {
+    current_event: string | null;
+    events: EventDTO[];
 }

@@ -30,5 +30,5 @@ export interface EventDTO {
 
 // Extiende EventDTO para incluir el nombre de la sala
 export interface EventDTOResponse extends EventDTO { 
-    roomName: string;
+    roomName?: string;
 }
