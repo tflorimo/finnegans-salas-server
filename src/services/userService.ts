@@ -1,4 +1,4 @@
-import User from "../models/user";
+import { User } from "../models/index";
 import {
   UserBase,
   UserRole,
@@ -8,7 +8,7 @@ import {
 class UserService {
   async findUserById(id: number): Promise<UserAttributes | null> {
     const user = await User.findByPk(id);
-    
+
     if (!user) {
       return null;
     }
@@ -20,6 +20,17 @@ class UserService {
       name: userBase.name,
       role: userBase.role,
     };
+  }
+
+  async getNameByEmail(email: string): Promise<string | null> {
+    if (!email) throw new Error("Email requerido");
+
+    const user = await User.findOne({
+      where: { email },
+      attributes: ["name"],
+    });
+
+    return user ? (user.get("name") as string) : null;
   }
 
   async upsertUser(userBase: UserBase): Promise<UserAttributes> {

@@ -3,19 +3,16 @@ import { EventDTO, EventDTOResponse } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
 import roomService from "./roomService";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
-
+import { filterEventsByWeek } from "../utils/dateUtils.ts";
+import UserService from "./userService";
 class EventService {
 
     async getAllEvents(): Promise<EventDTOResponse[]> {
         const eventos = await Event.findAll({
-            include: [{
-                model: Room,
-                as: 'room',
-                attributes: ['name']
-            }]
+            include: [{ model: Room, as: "room", attributes: ["name"] }],
         });
 
-        return eventos.map(evento => mapEventToResponseDTO(evento));
+        return this.mapWithCreatorNames(eventos);
     }
 
     async getEventById(id: string): Promise<Event | null> {
@@ -25,14 +22,20 @@ class EventService {
     async getEventsByRoomId(roomId: string): Promise<EventDTOResponse[]> {
         const eventos = await Event.findAll({
             where: { roomEmail: roomId },
-            include: [{
-                model: Room,
-                as: 'room',
-                attributes: ['name']
-            }]
+            include: [{ model: Room, as: "room", attributes: ["name"] }],
         });
 
-        return eventos.map(evento => mapEventToResponseDTO(evento));
+        const eventosDTO = await this.mapWithCreatorNames(eventos);
+        return filterEventsByWeek(eventosDTO);
+    }
+
+    private async mapWithCreatorNames(events: Event[]): Promise<EventDTOResponse[]> {
+        return Promise.all(
+            events.map(async (event) => {
+                const creatorName = await UserService.getNameByEmail(event.creatorMail);
+                return mapEventToResponseDTO(event, creatorName || "Usuario desconocido");
+            })
+        );
     }
 
     async checkEventAttendeesForResource(event: EventAttributes): Promise<Boolean> {

@@ -44,7 +44,7 @@ export function mapRoomToRequestDTO(room: Room): RoomRequestDTO {
         is_busy: room.is_busy,
         current_event: room.current_event,
         resources: room.resources,
-        events: [] // los eventos se pueden setean después
+        events: [] // los eventos se setean después
     };
 }
 

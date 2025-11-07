@@ -1,4 +1,3 @@
-import { Model } from "sequelize";
 import { Room, Event } from "../models";
 import { RoomRequestDTO, RoomDTO } from "../dtos/roomDTO";
 import type { RoomAttributes } from "../models/room.types";
@@ -22,6 +21,7 @@ class RoomService {
     private async enrichRoomWithEvents(room: Room): Promise<RoomRequestDTO> {
         const mappedRoom = mapRoomToRequestDTO(room);
         const eventos = await EventService.getEventsByRoomId(room.email);
+        
         return {
             ...mappedRoom,
             events: eventos
@@ -51,7 +51,7 @@ class RoomService {
     }
 
     /** actualiza el current event de un room
-    * @param roomEmail el mail d la sala a actualizar
+    * @param roomEmail el mail d la sala a actualizar, además, actualiza el estado de is_bussy
     * @param eventId el eventId el evento que le vamos a poner a la sala como current event
     */
     async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<void> {
@@ -59,6 +59,7 @@ class RoomService {
         if (room) {
             if (room.get('current_event') !== eventId) {
                 room.set('current_event', eventId);
+                room.set('is_busy', eventId !== null);
                 await room.save();
             }
         }
@@ -67,7 +68,7 @@ class RoomService {
     /**
      * @returns La sala correspondiente al id proporcionado, o null si no existe
      */
-    async fetchRoom(id: string): Promise<Model | null> {
+    async fetchRoom(id: string): Promise<Room | null> {
         const room = await Room.findByPk(id);
         if (!room) {
             return null;

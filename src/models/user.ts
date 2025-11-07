@@ -19,16 +19,17 @@ const User = sequelize.define
 			},
 		},
 
-	name: {
-		type: DataTypes.STRING,
-		allowNull: true,
-	},
+		name: {
+			type: DataTypes.STRING,
+			allowNull: true,
+		},
 
-	role: {
-		type: DataTypes.ENUM('admin', 'user'),
-		allowNull: false,
-		defaultValue: 'user',
-	},	}, {
+		role: {
+			type: DataTypes.ENUM('admin', 'user'),
+			allowNull: false,
+			defaultValue: 'user',
+		},
+	}, {
 		timestamps: true,
 		paranoid: true, // borrado logico
 		tableName: 'users',

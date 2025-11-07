@@ -1,5 +1,6 @@
 import { AttendeeDTO, EventDTO, EventDTOResponse } from "../../dtos/eventDTO";
 import { Event } from "../../models";
+import { getDateWithoutTime } from "../dateUtils.ts";
 
 export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): EventDTO {
 
@@ -21,7 +22,7 @@ export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): Ev
     } as EventDTO;
 }
 
-export function mapEventToResponseDTO(event: Event): EventDTOResponse {
+export function mapEventToResponseDTO(event: Event, creatorName: string): EventDTOResponse {
   const room = (event as any).room as { name?: string } | undefined;
 
   return {
@@ -34,5 +35,7 @@ export function mapEventToResponseDTO(event: Event): EventDTOResponse {
     checkedIn: event.checkedIn,
     attendees: event.attendees as AttendeeDTO[],
     ...(room?.name ? { roomName: room.name } : {}),
+    date: getDateWithoutTime(event.startTime),
+    creatorName: creatorName,
   };
 }
