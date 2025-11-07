@@ -49,35 +49,6 @@ class AuthController {
     }
   };
 
-  checkAuth = async (req: Request, res: Response): Promise<void> => {
-    const token = req.header("Authorization")?.replace("Bearer ", "");
-    if (!token) {
-      res.status(401).json({ authenticated: false, message: "no_token" });
-      return;
-    }
-
-    try {
-      const payload = jwtService.verifyAccess(token);
-      const userId = jwtService.extractSubjectId(payload);
-
-      if (!userId) {
-        res.status(401).json({ authenticated: false, message: "invalid_token" });
-        return;
-      }
-
-      const user = await userService.findUserById(userId);
-      if (!user) {
-        res.status(401).json({ authenticated: false, message: "user_not_found" });
-        return;
-      }
-
-      (req as any).user = user;
-      res.status(200).json({ authenticated: true, user });
-    } catch (error) {
-      res.status(401).json({ authenticated: false, message: "invalid_token" });
-    }
-  };
-
   refresh = async (req: Request, res: Response): Promise<void> => {
     const refreshToken = req.cookies?.[refreshCookieName];
     if (!refreshToken) {

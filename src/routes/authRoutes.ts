@@ -6,7 +6,6 @@ const router = Router();
 
 router.get("/google", authController.authRedirect);
 router.get("/oauth2callback", authController.oauth2Callback);
-router.get("/check", authenticate, authController.checkAuth);
 router.post("/refresh", authController.refresh);
 router.post("/logout", authenticate, authController.logout);
 
