@@ -1,6 +1,5 @@
 import { Model } from "sequelize";
-import Event from "../models/event";
-import Room from "../models/room";
+import { Event, Room } from "../models";
 import { EventDTO, EventDTOResponse } from "../dtos/eventDTO";
 import { AttendeeDTO } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
@@ -12,12 +11,13 @@ class EventService {
         const eventos = await Event.findAll({
             include: [{
                 model: Room,
+                as: 'room',
                 attributes: ['name']
             }]
         });
 
         return eventos.map(evento => {
-            const room = (evento as any).Room; 
+            const room = (evento as any).room; 
             
             return {
                 id: evento.id,
@@ -37,6 +37,18 @@ class EventService {
         return Event.findByPk(id);
     }
 
+    async checkEventAttendeesForResource(event: EventAttributes): Promise<Boolean> {
+
+        let roomResourceFound = false;
+        for(const attendee of event.attendees) {
+            if(attendee.resource) {
+                roomResourceFound = true;
+            }
+        }
+
+        return roomResourceFound;
+    }
+
     async upsertEvent(eventDTO: EventDTO): Promise<void> {
         const eventValues: EventAttributes = {
             id: eventDTO.id,
@@ -47,6 +59,12 @@ class EventService {
             endTime: eventDTO.endTime,
             checkedIn: eventDTO.checkedIn,
             attendees: eventDTO.attendees, // es un dto
+        }
+
+        const debeGuardar = await this.checkEventAttendeesForResource(eventValues);
+        if(!debeGuardar) {
+            console.log(`El evento con id "${eventDTO.id}" no tiene asistentes que sean salas, no se guardará.`);
+            return;
         }
 
         await Event.upsert(eventValues);

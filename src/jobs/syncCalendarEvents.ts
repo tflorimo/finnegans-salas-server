@@ -41,7 +41,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
             try {
                 const response = await calendar.events.list({
                     calendarId: email,
-                    maxResults: 10,
+                    maxResults: 100,
                     singleEvents: true,
                     orderBy: 'startTime',
                 });
