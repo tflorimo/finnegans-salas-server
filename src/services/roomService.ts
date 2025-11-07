@@ -1,20 +1,22 @@
 import { Model } from "sequelize";
 import { Room, Event } from "../models";
-import { RoomDTO } from "../dtos/roomDTO";
+import { RoomRequestDTO, RoomDTO } from "../dtos/roomDTO";
 import type { RoomAttributes } from "../models/room.types";
 import { Attendee } from "../models/event.types";
-
+import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
 class RoomService {
 
-    async getAllRooms(): Promise<Model[]> {
-        return Room.findAll();
+    async getAllRooms(): Promise<RoomRequestDTO[]> {
+        const rooms = await Room.findAll();
+        return await Promise.all(rooms.map(room => mapRoomToRequestDTO(room)));
     }
 
-    async getRoomById(id: string): Promise<Model | null> {
-        return Room.findByPk(id);
+    async getRoomById(id: string): Promise<RoomRequestDTO | null> {
+        const room = await Room.findByPk(id);
+        return room ? mapRoomToRequestDTO(room) : null;
     }
 
-    async upsertRoom(roomDTO: RoomDTO) : Promise<void> {
+    async upsertRoom(roomDTO: RoomDTO): Promise<void> {
         // current_event no viene en el DTO porque no nos interesa que esté en el DTO
         // si nos interesa que se guarde en la base de datos, por eso forma parte de roomAttributes y de la clase Room
         const roomValues: RoomAttributes = {
@@ -32,7 +34,7 @@ class RoomService {
     }
 
     async getAllRoomEmails(): Promise<string[]> {
-        const rooms =  await Room.findAll({ attributes: ['email'] });
+        const rooms = await Room.findAll({ attributes: ['email'] });
         return rooms.map(room => room.email);
     }
 
@@ -43,7 +45,7 @@ class RoomService {
     async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<void> {
         const room = await Room.findByPk(roomEmail);
         if (room) {
-            if(room.get('current_event') !== eventId){
+            if (room.get('current_event') !== eventId) {
                 room.set('current_event', eventId);
                 await room.save();
             }
@@ -54,32 +56,32 @@ class RoomService {
      * @returns La sala correspondiente al id proporcionado, o null si no existe
      */
     async fetchRoom(id: string): Promise<Model | null> {
-        const room =  await Room.findByPk(id);
+        const room = await Room.findByPk(id);
         if (!room) {
             return null;
         }
         return room;
     }
 
-    async checkInCurrentEvent(id: string, userEmail: string): Promise<{ success: boolean; event?: Model | null; message?: string }> {
-        
+    async checkInCurrentEvent(id: string, userEmail: string): Promise<{ success: boolean; event?: Event | null; message?: string }> {
+
         const respuesta = {
             success: false,
-            event: null as Model | null,
+            event: null as Event | null,
             message: 'template de mensaje'
         }
 
         const currentRoom = await this.fetchRoom(id); // buscamos la sala que nos llega
 
         // si la sala existe, entonces buscamos el evento actual de la sala
-        if(!currentRoom) {
+        if (!currentRoom) {
             respuesta.message = 'Sala no encontrada';
             return respuesta;
         }
 
         const currentEventId = currentRoom.get('current_event') as string | null;
 
-        if(!currentEventId) {
+        if (!currentEventId) {
             respuesta.message = 'No hay un evento actual en esta sala para hacer checkin';
             return respuesta;
         }
@@ -91,7 +93,7 @@ class RoomService {
             return respuesta;
         }
 
-        if(event.get('checkedIn') === true) {
+        if (event.get('checkedIn') === true) {
             respuesta.message = "Este evento ya posee el checkin realizado.";
             return respuesta;
         }
@@ -99,7 +101,7 @@ class RoomService {
         // Attendees no es array de strings, es DTO
         const attendeesDTO = event.get('attendees') as Attendee[] | null;
 
-        if(attendeesDTO && !attendeesDTO.some(attendee => attendee.email === userEmail)) {
+        if (attendeesDTO && !attendeesDTO.some(attendee => attendee.email === userEmail)) {
             respuesta.message = "Para poder hacer checkin, debes estar como asistente del evento!";
             return respuesta;
         }
@@ -110,7 +112,7 @@ class RoomService {
         // limite de 15 minutos después del startTime, superado ese tiempo no pueden hacer checkin
         const limite = new Date(startTime.getTime() + (15 * 60) * 1000);
 
-        if(now > limite) {
+        if (now > limite) {
             respuesta.message = "El tiempo para hacer checkin ya expiró! No es posible realizar el checkin.";
             return respuesta;
         }

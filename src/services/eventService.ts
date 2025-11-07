@@ -4,6 +4,7 @@ import { EventDTO, EventDTOResponse } from "../dtos/eventDTO";
 import { AttendeeDTO } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
 import roomService from "./roomService";
+import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 
 class EventService {
 
@@ -16,32 +17,31 @@ class EventService {
             }]
         });
 
-        return eventos.map(evento => {
-            const room = (evento as any).room; 
-            
-            return {
-                id: evento.id,
-                creatorMail: evento.creatorMail,
-                roomEmail: evento.roomEmail,
-                startTime: evento.startTime,
-                title: evento.title,
-                endTime: evento.endTime,
-                checkedIn: evento.checkedIn,
-                attendees: evento.attendees as AttendeeDTO[],
-                roomName: room ? room.name : 'Sala no encontrada',
-            };
-        });
+        return eventos.map(evento => mapEventToResponseDTO(evento));
     }
 
-    async getEventById(id: string): Promise<Model | null> {
+    async getEventById(id: string): Promise<Event | null> {
         return Event.findByPk(id);
+    }
+
+    async getEventsByRoomId(roomId: string): Promise<EventDTOResponse[]> {
+        const eventos = await Event.findAll({
+            where: { roomEmail: roomId },
+            include: [{
+                model: Room,
+                as: 'room',
+                attributes: ['name']
+            }]
+        });
+
+        return eventos.map(evento => mapEventToResponseDTO(evento));
     }
 
     async checkEventAttendeesForResource(event: EventAttributes): Promise<Boolean> {
 
         let roomResourceFound = false;
-        for(const attendee of event.attendees) {
-            if(attendee.resource) {
+        for (const attendee of event.attendees) {
+            if (attendee.resource) {
                 roomResourceFound = true;
             }
         }
@@ -62,7 +62,7 @@ class EventService {
         }
 
         const debeGuardar = await this.checkEventAttendeesForResource(eventValues);
-        if(!debeGuardar) {
+        if (!debeGuardar) {
             console.log(`El evento con id "${eventDTO.id}" no tiene asistentes que sean salas, no se guardará.`);
             return;
         }
@@ -76,7 +76,7 @@ class EventService {
         /**
          * validamos que la fecha y hora actual esté en el rango del evento, para asignare este evento como current_event
          */
-        if(now >= startTime && now <= endTime) {
+        if (now >= startTime && now <= endTime) {
             await roomService.updateRoomCurrentEvent(eventDTO.roomEmail, eventDTO.id);
         }
     }
