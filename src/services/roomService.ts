@@ -1,6 +1,5 @@
 import { Model } from "sequelize";
-import Room from "../models/room";
-import Event from "../models/event";
+import { Room, Event } from "../models";
 import { RoomDTO } from "../dtos/roomDTO";
 import type { RoomAttributes } from "../models/room.types";
 import { Attendee } from "../models/event.types";

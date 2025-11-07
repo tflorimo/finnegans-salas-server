@@ -1,7 +1,6 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 import { RoomAttributes } from "./room.types";
-import { Event } from "./event";
 
 export class Room extends Model<RoomAttributes> implements RoomAttributes {
     public email!: string;
@@ -62,7 +61,7 @@ Room.init(
             type: DataTypes.STRING,
             allowNull: true,
             references: {
-                model: Event,
+                model: 'events',
                 key: 'id'
             }
         },
@@ -74,17 +73,15 @@ Room.init(
 
     },
     {   
-        sequelize,
-        timestamps: true,
-        paranoid: true, // borrado logico
-        tableName: 'rooms',  //nombre en la tabla de la bd
-        modelName: 'Room',
-        indexes: [
-            { fields: ['email'] },
-            { fields: ['name'] },
-        ],
-    });
-
-Room.belongsTo(Event, { foreignKey: 'current_event', targetKey: 'id', as: 'currentEvent' });
+    sequelize,
+    timestamps: true,
+    paranoid: true, // borrado logico
+    tableName: 'rooms',  //nombre en la tabla de la bd
+    modelName: 'Room',
+    indexes: [
+        { fields: ['email'] },
+        { fields: ['name'] },
+    ],
+});
 
 export default Room;

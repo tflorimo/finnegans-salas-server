@@ -1,16 +1,18 @@
 import { BorrarEventosJob } from "../jobs/borrarEventosJob";
+import { SyncCalendarEventsJob } from "../jobs/syncCalendarEvents";
 import cronScheduler from "./cronScheduler";
 
 export const setupJobs = () => {
     const borrarEventos = new BorrarEventosJob();
+    const syncCalendarEvents = new SyncCalendarEventsJob();
 
     cronScheduler.schedule({
         name: 'Descarga de eventos de Calendar',
         cronExpression: '* * * * *', // Cada minuto
         task: async () => {
-            // syncCalendarEvents.execute();
+            syncCalendarEvents.execute();
         },
-        enabled: false
+        enabled: true
     });
 
     cronScheduler.schedule({
@@ -26,9 +28,9 @@ export const setupJobs = () => {
         name: 'Chequeo y sincronización de room resources',
         cronExpression: '0 */1 * * *', // Cada 1 hora
         task: async () => {
-            // await borrarEventos.execute();
+            await borrarEventos.execute();
         },
-        enabled: false
+        enabled: true
     });
 }
 
