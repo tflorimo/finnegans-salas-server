@@ -1,5 +1,5 @@
 import roomService from "../services/roomService";
-import { Request, Response } from "express"; // tener cuidado con la importacion correcta de Request y Response, que sea de express sí o sí
+import { Request, Response } from "express"; 
 
 class RoomController {
     private roomService = roomService;
