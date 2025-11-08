@@ -35,7 +35,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
         const authClient = await auth.getClient();
         const calendar = google.calendar({ version: 'v3', auth: authClient as Auth.JWT });
 
-        roomEmails.map(async (email) => {
+        for (const email of roomEmails) {
             try {
                 const response = await calendar.events.list({
                     calendarId: email,
@@ -59,7 +59,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
                 }
 
                 for (const event of events) {
-                    const eventSearched = await EventService.getEventById(event.id!)
+                    const eventSearched = await EventService.getEventById(event.id!);
 
                     if (eventSearched) {
                         // Si el evento existe, actualizarlo con el checkInStatus correcto
@@ -126,6 +126,6 @@ export class SyncCalendarEventsJob implements JobRemoto {
             } catch (error: any | string) {
                 console.error(`Error al obtener eventos para la sala "${email}": ${error.message}`);
             }
-        });
+        }
     }
 }

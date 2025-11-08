@@ -76,5 +76,3 @@ Event.init(
             { fields: ['checkInStatus'] },
         ],
     });
-
-export default Event;

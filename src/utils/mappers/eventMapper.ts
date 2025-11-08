@@ -1,7 +1,7 @@
 import { AttendeeDTO, EventDTO, EventDTOResponse, CheckInStatus } from "../../dtos/eventDTO";
 import { Event } from "../../models";
 import { EventAttributes } from "../../models/event.types";
-import { getDateWithoutTime } from "../dateUtils.ts";
+import { getDateWithoutTime } from "../dateUtils";
 
 // Helper para mapear attendees desde la respuesta de Google Calendar
 function mapAttendees(attendees: any[]): AttendeeDTO[] {

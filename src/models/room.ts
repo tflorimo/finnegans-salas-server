@@ -87,5 +87,3 @@ Room.init(
         ],
     }
 );
-
-export default Room;

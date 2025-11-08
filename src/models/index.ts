@@ -1,7 +1,7 @@
 import { Room } from "./room";
 import { Event } from "./event";
+import { User } from "./user";
 import { asociacionesModelos } from "./assoc";
-import User from "./user";
 
 asociacionesModelos();
 

@@ -65,7 +65,7 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                     }
 
                     // Luego actualizar is_busy basado en el estado del evento
-                    await RoomService.updateIsBussyStatus(updatedRoom.email);
+                    await RoomService.updateIsBusyStatus(updatedRoom.email);
                     await RoomService.upsertRoom(updatedRoom);
 
                     // Si estaba eliminada (deletedAt), restaurarla

@@ -1,5 +1,5 @@
 import { Room, Event } from "../models";
-import { RoomRequestDTO, RoomDTO, RoomCreateDTO } from "../dtos/roomDTO";
+import { RoomRequestDTO, RoomDTO } from "../dtos/roomDTO";
 import { EventDTOResponse, CheckInStatus } from "../dtos/eventDTO";
 import type { RoomAttributes } from "../models/room.types";
 import { Attendee } from "../models/event.types";
@@ -11,27 +11,59 @@ class RoomService {
 
     async getAllRooms(): Promise<RoomRequestDTO[]> {
         const rooms = await Room.findAll();
+        const currentEventIds = rooms
+            .map(room => room.get('current_event') as string | null)
+            .filter((id): id is string => id !== null);
+
+        const eventPromises = currentEventIds.map(id => EventService.getEventById(id));
+        const eventResults = await Promise.all(eventPromises);
+        const events = eventResults.filter((event): event is Event => event !== null);
+
+        const creatorEmails = [...new Set(events.map(event => event.creatorMail))];
+        const creators = await UserService.getUsersByEmails(creatorEmails);
+        const creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
+        const eventMap = new Map(events.map(event => [event.id, event]));
+
         return Promise.all(
-            rooms.map(room => this.enrichRoomWithEvents(room))
+            rooms.map(room => this.enrichRoomWithEvents(room, eventMap, creatorMap))
         );
     }
 
     async getRoomById(id: string): Promise<RoomRequestDTO | null> {
         const room = await Room.findByPk(id);
-        return room ? this.enrichRoomWithEvents(room) : null;
+        if (!room) return null;
+
+        const currentEventId = room.get('current_event') as string | null;
+        let event: Event | null = null;
+        let creatorMap = new Map<string, string>();
+
+        if (currentEventId) {
+            event = await EventService.getEventById(currentEventId);
+            if (event) {
+                const creators = await UserService.getUsersByEmails([event.creatorMail]);
+                creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
+            }
+        }
+
+        const eventMap = event ? new Map([[event.id, event]]) : new Map();
+        return this.enrichRoomWithEvents(room, eventMap, creatorMap);
     }
 
     // Enriquece una room con sus eventos y el currentEvent completo
-    private async enrichRoomWithEvents(room: Room): Promise<RoomRequestDTO> {
+    private async enrichRoomWithEvents(
+        room: Room,
+        eventMap: Map<string, Event>,
+        creatorMap: Map<string, string>
+    ): Promise<RoomRequestDTO> {
         const currentEventId = room.get('current_event') as string | null;
         let currentEventDTO: EventDTOResponse | null = null;
 
-        // Si hay current_event, obtenerlo completo con toda su info
+        // Si hay current_event, obtenerlo de la db con toda su info
         if (currentEventId) {
-            const event = await Event.findByPk(currentEventId);
+            const event = eventMap.get(currentEventId);
             if (event) {
-                const creatorName = await UserService.getNameByEmail(event.creatorMail);
-                currentEventDTO = await EventService.mapEventToDTO(event, creatorName || "Usuario desconocido");
+                const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
+                currentEventDTO = await EventService.mapEventToDTO(event, creatorName);
             } else {
                 console.warn(`[enrichRoomWithEvents] Evento fantasma detectado en ${room.email}: ${currentEventId}`);
                 // Limpia los atributos
@@ -105,7 +137,7 @@ class RoomService {
         return new Date(currentEvent.endTime).getTime() <= Date.now();
     }
 
-    async updateIsBussyStatus(roomEmail: string): Promise<void> {
+    async updateIsBusyStatus(roomEmail: string): Promise<void> {
         const room = await Room.findByPk(roomEmail);
         if (!room) {
             return;
@@ -126,7 +158,7 @@ class RoomService {
         }
 
         // Si hay evento, verificar su checkInStatus
-        const event = await Event.findByPk(currentEventId);
+        const event = await EventService.getEventById(currentEventId);
 
         if (!event) {
             // El evento no existe, limpiamos la sala
@@ -175,7 +207,7 @@ class RoomService {
             return respuesta;
         }
 
-        const event = await Event.findByPk(currentEventId);
+        const event = await EventService.getEventById(currentEventId);
 
         if (!event) {
             respuesta.message = 'Evento no encontrado';

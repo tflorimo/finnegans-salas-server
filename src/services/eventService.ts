@@ -3,9 +3,8 @@ import { EventDTO, EventDTOResponse, CheckInStatus } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
 import roomService from "./roomService";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
-import { filterEventsByWeek } from "../utils/dateUtils.ts";
+import { filterEventsByWeek } from "../utils/dateUtils";
 import UserService from "./userService";
-
 class EventService {
 
     async getAllEvents(): Promise<EventDTOResponse[]> {
@@ -88,12 +87,15 @@ class EventService {
     }
 
     private async mapWithCreatorNames(events: Event[]): Promise<EventDTOResponse[]> {
-        return Promise.all(
-            events.map(async (event) => {
-                const creatorName = await UserService.getNameByEmail(event.creatorMail);
-                return mapEventToResponseDTO(event, creatorName || "Usuario desconocido");
-            })
-        );
+
+        const uniqueCreatorEmails = [...new Set(events.map(event => event.creatorMail))];
+        const creators = await UserService.getUsersByEmails(uniqueCreatorEmails);
+        const creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
+
+        return events.map(event => {
+            const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
+            return mapEventToResponseDTO(event, creatorName);
+        });
     }
 
     /**
@@ -201,7 +203,7 @@ class EventService {
             return { isOverlapping: false, isPrimary: true };
         }
 
-        // El evento primario es el más antiguo (por createdAt)
+        // El evento primario es el más antiguo (por createdAt) y es el que predomina
         const currentEvent = await Event.findByPk(eventId);
         if (!currentEvent) {
             return { isOverlapping: false, isPrimary: true };
