@@ -51,7 +51,7 @@ class EventService {
             creatorMail: eventDTO.creatorMail,
             roomEmail: eventDTO.roomEmail,
             startTime: eventDTO.startTime,
-            title: eventDTO.title,
+            title: eventDTO.title || "(Sin Título)",
             endTime: eventDTO.endTime,
             checkInStatus: eventDTO.checkInStatus,
             attendees: eventDTO.attendees,
