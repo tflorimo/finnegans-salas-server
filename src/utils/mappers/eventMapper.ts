@@ -1,6 +1,27 @@
 import { AttendeeDTO, EventDTO, EventDTOResponse } from "../../dtos/eventDTO";
 import { Event } from "../../models";
+import { EventAttributes } from "../../models/event.types";
 import { getDateWithoutTime } from "../dateUtils.ts";
+//TODO: Son muy similares los mappers, quizá con una sobrecarga de funciones se podría optimizar
+export function updateEvent(eventResponse: any, existingEvent: Event): EventAttributes {
+
+    const attendees: AttendeeDTO[] = eventResponse.attendees.map((attendee: any) => ({
+        email: attendee.email,
+        responseStatus: attendee.responseStatus,
+        resource: attendee.resource || false,
+    }));
+
+    return {
+        id: eventResponse.id as string,
+        creatorMail: eventResponse.creator.email as string,
+        roomEmail: existingEvent.roomEmail,
+        startTime: new Date(eventResponse.start.dateTime),
+        title: eventResponse.summary as string,
+        endTime: new Date(eventResponse.end.dateTime),
+        checkedIn: existingEvent.checkedIn,
+        attendees: attendees,
+    } as EventDTO;
+}
 
 export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): EventDTO {
 
@@ -14,9 +35,9 @@ export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): Ev
         id: eventResponse.id as string,
         creatorMail: eventResponse.creator.email as string,
         roomEmail: roomEmail,
-        startTime: eventResponse.start.dateTime as Date,
+        startTime: new Date(eventResponse.start.dateTime),
         title: eventResponse.summary as string,
-        endTime: eventResponse.end.dateTime as Date,
+        endTime: new Date(eventResponse.end.dateTime),
         checkedIn: false, // propietario de la app (indica estado, es un boolean)
         attendees: attendees,
     } as EventDTO;

@@ -1,7 +1,26 @@
 import { EventDTO } from "../../dtos/eventDTO";
-import { RoomDTO, RoomRequestDTO, RoomResponseDTO } from "../../dtos/roomDTO";
+import { RoomCreateDTO, RoomDTO, RoomRequestDTO, RoomResponseDTO } from "../../dtos/roomDTO";
 import { Room } from "../../models";
+//TODO: Son muy similares los mappers, quizá con una sobrecarga de funciones se podría optimizar
+export function updateRoom(resource: any, room: RoomCreateDTO | Room): RoomCreateDTO {
+    const features = extractFeatures(resource);
 
+    // Manejar tanto DTOs como modelos de Room
+    const is_busy = room instanceof Room ? room.get('is_busy') : room.is_busy;
+    const current_event = room instanceof Room ? room.get('current_event') : room.current_event;
+
+    return {
+        email: resource.resourceEmail,
+        name: resource.resourceName,
+        floor: resource.floorName,
+        type: resource.resourceType,
+        is_busy: is_busy as boolean,
+        current_event: current_event as string | null,
+        capacity: resource.capacity,
+        description: resource.userVisibleDescription,
+        resources: features.length > 0 ? features : null,
+    };
+}
 
 export function mapRoomResponseToRoomDTO(roomResponse: RoomResponseDTO): RoomDTO | null {
 

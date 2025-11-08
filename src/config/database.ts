@@ -10,6 +10,7 @@ const sequelize = new Sequelize(
     {
         host: process.env.DB_HOST!,
         dialect: 'mysql',  
+        timezone: '-03:00', // Timezone de Uruguay/Argentina
         logging: false, // desactiva los logs de SQL en consola
         pool: {
             max: 10,            // máximo de conexiones abiertas a la vez

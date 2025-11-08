@@ -39,7 +39,7 @@ class RoomController {
     async checkIn(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const { userEmail } = req.body.user; 
+            const userEmail = (req as any).user?.email;
             const resultado = await roomService.checkInCurrentEvent(id, userEmail);
             if (!resultado.success) {
                 res.status(400).json({

@@ -22,9 +22,9 @@ export const isOAuthAccessDeniedError = (
 export const ensureOAuthAccess = (email: string): void => {
   const normalized = email.toLowerCase();
 
-  if (!normalized.endsWith(`@${allowedDomain}`)) {
+/*   if (!normalized.endsWith(`@${allowedDomain}`)) {
     throw new OAuthAccessDeniedError("oauth_domain_not_allowed");
-  }
+  } */
 
   if (!testerEmails.has(normalized)) {
     throw new OAuthAccessDeniedError("oauth_not_tester");

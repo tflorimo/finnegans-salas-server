@@ -36,7 +36,9 @@ export interface RoomDTO {
     is_busy: boolean;
     resources: string[] | null;
 }
-export interface RoomRequestDTO extends RoomDTO {
+export interface RoomCreateDTO extends RoomDTO {
     current_event: string | null;
-    events: EventDTO[];
+}
+export interface RoomRequestDTO extends RoomCreateDTO {
+        events: EventDTO[];
 }
