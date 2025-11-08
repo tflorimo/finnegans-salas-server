@@ -9,19 +9,19 @@ export const setupJobs = () => {
     const syncLocalRoomResourcesJob = new SyncLocalRoomResourcesJob();
 
     cronScheduler.schedule({
-        name: 'Descarga de eventos de Calendar',
-        cronExpression: '* * * * *', // Cada minuto
+        name: 'Chequeo y sincronización de room resources desde API de Google',
+        cronExpression: '* * * * *', // Cada minuto -> @TODO: Cambiar a semana en producción
         task: async () => {
-            syncCalendarEvents.execute();
+            await syncApiRoomResourcesJob.execute();
         },
         enabled: true
     });
 
     cronScheduler.schedule({
-        name: 'Chequeo y sincronización de room resources desde API de Google',
-        cronExpression: '* * * * *', // Cada hora (COMO ESTABA ANTES)
+        name: 'Descarga de eventos de Calendar',
+        cronExpression: '* * * * *', // Cada minuto 
         task: async () => {
-            await syncApiRoomResourcesJob.execute();
+            syncCalendarEvents.execute();
         },
         enabled: true
     });

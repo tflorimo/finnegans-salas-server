@@ -5,6 +5,9 @@ import RoomService from '../services/roomService';
 import EventService from '../services/eventService';
 import { mapResponseToEventDTO } from '../utils/mappers/eventMapper';
 import { updateEvent } from '../utils/mappers/eventMapper';
+import { Event } from '../models';
+import { CheckInStatus } from '../dtos/eventDTO';
+
 export class SyncCalendarEventsJob implements JobRemoto {
 
     ADMIN_ACCOUNT_IMPERSONATE: string;
@@ -18,12 +21,8 @@ export class SyncCalendarEventsJob implements JobRemoto {
     }
 
     async execute(): Promise<void> {
-        console.log('Iniciando sincronización de eventos de calendario...');
         const roomEmails = await RoomService.getAllRoomEmails();
-        if (roomEmails.length === 0) {
-            console.log('No se pudo obtener los correos de las salas!');
-            return;
-        }
+        console.log('[SyncCalendarEvents] Sincronizando eventos de calendario...');
 
         const auth = new google.auth.GoogleAuth({
             keyFile: this.SERVICE_ACCOUNT_FILE,
@@ -48,7 +47,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
                 const events = response.data.items || [];
                 const eventIdsFromCalendar = events.map(event => event.id!);
 
-                // Obtiene todos los eventos actuales de esta sala en la BD
+
                 const localEvents = await EventService.getEventsByRoomId(email);
                 
                 // Marca como eliminados los eventos que ya no están en Calendar
@@ -63,24 +62,64 @@ export class SyncCalendarEventsJob implements JobRemoto {
                     const eventSearched = await EventService.getEventById(event.id!)
 
                     if (eventSearched) {
-                        // Si el evento existe, actualizarlo
+                        // Si el evento existe, actualizarlo con el checkInStatus correcto
                         const updatedEvent = updateEvent(event, eventSearched);
+                        
+                        // Determinar el checkInStatus correcto según el tiempo
+                        const correctStatus = EventService.determineCheckInStatus(
+                            updatedEvent.startTime, 
+                            eventSearched.checkInStatus
+                        );
 
-                        if (updatedEvent) {
-                            await EventService.updateCheckedInStatus(updatedEvent);
-                        }
+                        updatedEvent.checkInStatus = correctStatus;
                         await EventService.upsertEvent(updatedEvent);
 
-                        // Si estaba eliminado (deletedAt), restaurarlo
+                        // Si estaba eliminado (deletedAt), restaurarlo (por las dudas)
                         if (eventSearched.deletedAt) {
                             await EventService.restoreEvent(event.id!);
                             console.log(`[SyncCalendarEvents] Evento ${event.id} restaurado`);
                         }
 
                     } else {
-                        // Crea los nuevos eventos
                         const eventDTO = mapResponseToEventDTO(event, email);
                         await EventService.upsertEvent(eventDTO);
+                    }
+                }
+
+                // Después de procesar todos los eventos, verificamos superposiciones
+                for (const event of events) {
+                    if (!event.id) continue;
+                    
+                    const startTime = new Date(event.start?.dateTime!);
+                    const endTime = new Date(event.end?.dateTime!);
+                    
+                    const overlapInfo = await EventService.checkEventOverlap(
+                        event.id,
+                        email,
+                        startTime,
+                        endTime
+                    );
+
+                    if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
+                        // Este es un evento secundario superpuesto 
+                        const eventToUpdate = await EventService.getEventById(event.id);
+                        if (eventToUpdate) {
+                            // Marcar como EXPIRED y agregar indicador en el título
+                            let newTitle = eventToUpdate.title;
+                            if (!newTitle.includes('(Evento Superpuesto)')) {
+                                newTitle = `${newTitle} (Evento Superpuesto)`;
+                            }
+
+                            await Event.update(
+                                { 
+                                    checkInStatus: CheckInStatus.EXPIRED,
+                                    title: newTitle
+                                },
+                                { where: { id: event.id } }
+                            );
+
+                            console.log(`[SyncCalendarEvents] Evento ${event.id} marcado como superpuesto (EXPIRED). Primario: ${overlapInfo.primaryEventId}`);
+                        }
                     }
                 }
 

@@ -1,45 +1,54 @@
-import { EventDTO } from "../../dtos/eventDTO";
+import { EventDTOResponse } from "../../dtos/eventDTO";
 import { RoomCreateDTO, RoomDTO, RoomRequestDTO, RoomResponseDTO } from "../../dtos/roomDTO";
 import { Room } from "../../models";
-//TODO: Son muy similares los mappers, quizá con una sobrecarga de funciones se podría optimizar
-export function updateRoom(resource: any, room: RoomCreateDTO | Room): RoomCreateDTO {
-    const features = extractFeatures(resource);
 
-    // Manejar tanto DTOs como modelos de Room
-    const is_busy = room instanceof Room ? room.get('is_busy') : room.is_busy;
-    const current_event = room instanceof Room ? room.get('current_event') : room.current_event;
+// Helper para extraer features desde la respuesta de Google Admin SDK
+function extractFeatures(dto: RoomResponseDTO | any): string[] {
+    if (!dto.featureInstances) return [];
+    return dto.featureInstances
+        .map((fi: any) => fi?.feature?.name)
+        .filter((n: any): n is string => typeof n === 'string' && n.trim().length > 0);
+}
 
+// Helper para mapear campos comunes de rooms
+function mapCommonRoomFields(resource: any, features: string[]): Partial<RoomDTO> {
     return {
         email: resource.resourceEmail,
         name: resource.resourceName,
         floor: resource.floorName,
         type: resource.resourceType,
-        is_busy: is_busy as boolean,
-        current_event: current_event as string | null,
-        capacity: resource.capacity,
-        description: resource.userVisibleDescription,
+        capacity: resource.capacity || 0,
+        description: resource.userVisibleDescription || null,
         resources: features.length > 0 ? features : null,
     };
 }
 
-export function mapRoomResponseToRoomDTO(roomResponse: RoomResponseDTO): RoomDTO | null {
+// Este actualiza una room existente con datos de Google Admin SDK, preservando estado local
+export function updateRoom(resource: any, room: RoomCreateDTO | Room): RoomCreateDTO {
+    const features = extractFeatures(resource);
+    const is_busy = room instanceof Room ? room.get('is_busy') : room.is_busy;
+    const current_event = room instanceof Room ? room.get('current_event') : room.current_event;
 
+    return {
+        ...mapCommonRoomFields(resource, features),
+        is_busy: is_busy as boolean,
+        current_event: current_event as string | null,
+    } as RoomCreateDTO;
+}
+
+// Mapea una room nueva desde Google Admin SDK API a RoomDTO
+export function mapRoomResponseToRoomDTO(roomResponse: RoomResponseDTO): RoomDTO | null {
     if (!roomResponse.resourceEmail) return null;
 
     const features = extractFeatures(roomResponse);
 
     return {
-        email: roomResponse.resourceEmail,
-        name: roomResponse.resourceName,
-        floor: roomResponse.floorName,
-        type: roomResponse.resourceType,
-        is_busy: false, // no viene en la response, por ende lo dejo en false ya que juega con el checkin
-        capacity: roomResponse.capacity,
-        description: roomResponse.userVisibleDescription,
-        resources: features.length > 0 ? features : null,
-    };
+        ...mapCommonRoomFields(roomResponse, features),
+        is_busy: false, // Nueva room siempre disponible
+    } as RoomDTO;
 }
 
+// Normaliza la respuesta de Google Admin SDK a RoomResponseDTO
 export function mapResponseToRoomResponseDTO(roomResponse: any): RoomResponseDTO {
     return {
         resourceEmail: roomResponse.resourceEmail || '',
@@ -52,7 +61,9 @@ export function mapResponseToRoomResponseDTO(roomResponse: any): RoomResponseDTO
     };
 }
 
-export function mapRoomToRequestDTO(room: Room): RoomRequestDTO {
+// Mapea un Room del modelo a RoomRequestDTO para enviar al frontend
+// NOTA: current_event y events se enriquecen después en el servicio
+export function mapRoomToRequestDTO(room: Room, currentEvent: EventDTOResponse | null, events: EventDTOResponse[]): RoomRequestDTO {
     return {
         email: room.email,
         name: room.name,
@@ -61,16 +72,9 @@ export function mapRoomToRequestDTO(room: Room): RoomRequestDTO {
         floor: room.floor,
         type: room.type,
         is_busy: room.is_busy,
-        current_event: room.current_event,
         resources: room.resources,
-        events: [] // los eventos se setean después
+        current_event: currentEvent,
+        events: events,
     };
-}
-
-function extractFeatures(dto: RoomResponseDTO): string[] {
-    if (!dto.featureInstances) return [];
-    return dto.featureInstances
-        .map((fi: any) => fi?.feature?.name)
-        .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
 }
 

@@ -1,45 +1,46 @@
 import { Room, Event } from "../models";
 import { RoomRequestDTO, RoomDTO, RoomCreateDTO } from "../dtos/roomDTO";
+import { EventDTOResponse, CheckInStatus } from "../dtos/eventDTO";
 import type { RoomAttributes } from "../models/room.types";
 import { Attendee } from "../models/event.types";
 import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
 import EventService from "./eventService";
+import UserService from "./userService";
+
 class RoomService {
 
     async getAllRooms(): Promise<RoomRequestDTO[]> {
-        // Solo devolver rooms que NO están eliminadas (paranoid: true por defecto)
         const rooms = await Room.findAll();
         return Promise.all(
             rooms.map(room => this.enrichRoomWithEvents(room))
         );
     }
 
-    async getRoomById(id: string): Promise<RoomCreateDTO | null> {
-        // Solo devolver rooms que NO están eliminadas (paranoid: true por defecto)
+    async getRoomById(id: string): Promise<RoomRequestDTO | null> {
         const room = await Room.findByPk(id);
         return room ? this.enrichRoomWithEvents(room) : null;
     }
 
+    // Enriquece una room con sus eventos y el currentEvent completo
     private async enrichRoomWithEvents(room: Room): Promise<RoomRequestDTO> {
-        let currentEventId = room.get('current_event') as string | null;
+        const currentEventId = room.get('current_event') as string | null;
+        let currentEventDTO: EventDTOResponse | null = null;
 
+        // Si hay current_event, obtenerlo completo con toda su info
         if (currentEventId) {
             const event = await Event.findByPk(currentEventId);
-            if (!event) {
-                // Limpia la sala
+            if (event) {
+                const creatorName = await UserService.getNameByEmail(event.creatorMail);
+                currentEventDTO = await EventService.mapEventToDTO(event, creatorName || "Usuario desconocido");
+            } else {
+                console.warn(`[enrichRoomWithEvents] Evento fantasma detectado en ${room.email}: ${currentEventId}`);
+                // Limpia los atributos
                 await room.update({ current_event: null, is_busy: false });
-                currentEventId = null;
             }
         }
 
-        const mappedRoom = mapRoomToRequestDTO(room);
         const eventos = await EventService.getEventsByRoomId(room.email);
-
-        return {
-            ...mappedRoom,
-            events: eventos,
-            current_event: currentEventId
-        };
+        return mapRoomToRequestDTO(room, currentEventDTO, eventos);
     }
 
     async upsertRoom(roomDTO: RoomDTO): Promise<void> {
@@ -124,18 +125,18 @@ class RoomService {
             return;
         }
 
-        // Si hay evento, verificar si se hizo checkin
+        // Si hay evento, verificar su checkInStatus
         const event = await Event.findByPk(currentEventId);
 
         if (!event) {
-            // El evento no existe, limpia la sala
+            // El evento no existe, limpiamos la sala
             await room.update({ current_event: null, is_busy: false });
             return;
         }
 
-        // Si el evento tiene checkedIn=true, entonces la sala está ocupada
-        const checkedIn = event.get('checkedIn') as boolean;
-        const isBusy = checkedIn === true;
+        // La sala está ocupada solo si el evento tiene checkInStatus=CHECKED_IN
+        const checkInStatus = event.get('checkInStatus') as CheckInStatus;
+        const isBusy = checkInStatus === CheckInStatus.CHECKED_IN;
 
         await room.update({ is_busy: isBusy });
     }
@@ -160,9 +161,8 @@ class RoomService {
             message: 'template de mensaje'
         }
 
-        const currentRoom = await this.fetchRoom(id); // buscamos la sala que nos llega
+        const currentRoom = await this.fetchRoom(id);
 
-        // si la sala existe, entonces buscamos el evento actual de la sala
         if (!currentRoom) {
             respuesta.message = 'Sala no encontrada';
             return respuesta;
@@ -171,7 +171,7 @@ class RoomService {
         const currentEventId = currentRoom.get('current_event') as string | null;
 
         if (!currentEventId) {
-            respuesta.message = 'No hay un evento actual en esta sala para hacer checkin';
+            respuesta.message = 'No hay un evento actual en esta sala para hacer check-in';
             return respuesta;
         }
 
@@ -182,36 +182,44 @@ class RoomService {
             return respuesta;
         }
 
-        if (event.get('checkedIn') === true) {
-            respuesta.message = "Este evento ya posee el checkin realizado.";
+        // Verificar si ya está checked in
+        const checkInStatus = event.get('checkInStatus') as CheckInStatus;
+
+        if (checkInStatus === CheckInStatus.CHECKED_IN) {
+            respuesta.message = "Este evento ya tiene el check-in realizado.";
             return respuesta;
         }
 
-        // Attendees no es array de strings, es DTO
+        if (checkInStatus === CheckInStatus.EXPIRED) {
+            respuesta.message = "El tiempo para hacer check-in ha expirado.";
+            return respuesta;
+        }
+
+        // Verificar que el usuario sea asistente
         const attendeesDTO = event.get('attendees') as Attendee[] | null;
 
         if (attendeesDTO && !attendeesDTO.some(attendee => attendee.email === userEmail)) {
-            respuesta.message = "Para poder hacer checkin, debes estar como asistente del evento!";
+            respuesta.message = "Para poder hacer check-in, debes estar como asistente del evento!";
             return respuesta;
         }
 
-        const now = new Date();
-        const startTime = new Date(event.get('startTime') as Date);
+        const startTime = event.get('startTime') as Date;
 
-        // limite de 15 minutos después del startTime, superado ese tiempo no pueden hacer checkin
-        const limite = new Date(startTime.getTime() + (15 * 60) * 1000);
+        // Usar la validación de EventService para check-in window
+        const canCheckIn = EventService.canCheckIn(startTime);
 
-        if (now > limite) {
-            respuesta.message = "El tiempo para hacer checkin ya expiró! No es posible realizar el checkin.";
+        if (!canCheckIn.canCheckIn) {
+            respuesta.message = canCheckIn.reason || "No es posible realizar check-in en este momento.";
             return respuesta;
         }
 
-        await event.update({ checkedIn: true });
+        // Realizar el check-in
+        await event.update({ checkInStatus: CheckInStatus.CHECKED_IN });
         await currentRoom.update({ is_busy: true });
 
         respuesta.success = true;
         respuesta.event = event;
-        respuesta.message = "Checkin realizado con éxito!";
+        respuesta.message = "Check-in realizado con éxito!";
         return respuesta;
     }
 

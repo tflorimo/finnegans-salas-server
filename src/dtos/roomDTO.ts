@@ -1,20 +1,4 @@
-/**
- * email = resourceEmail
- * name = resourceName
- * capacity = capacity
- * description = userVisibleDescription
- * floor = floorName (OJO QUE ES UN STRING)
- * type = resourceType
- * is_busy = propietario de la app (indica estado, es un boolean)
- * resources = JSON de strings con features (ej: ["wifi", "camara web hd"] )
- * recursos: {
- * "wifi",
- * "proyector",
- * "camara web hd"
- * }
- */
-
-import { EventDTO } from "./eventDTO";
+import { EventDTOResponse } from "./eventDTO";
 
 export interface RoomResponseDTO {
     resourceEmail: string;
@@ -36,9 +20,14 @@ export interface RoomDTO {
     is_busy: boolean;
     resources: string[] | null;
 }
+
+// Para DB
 export interface RoomCreateDTO extends RoomDTO {
     current_event: string | null;
 }
-export interface RoomRequestDTO extends RoomCreateDTO {
-        events: EventDTO[];
+
+// Para Frontend
+export interface RoomRequestDTO extends RoomDTO {
+    current_event: EventDTOResponse | null;
+    events: EventDTOResponse[];
 }

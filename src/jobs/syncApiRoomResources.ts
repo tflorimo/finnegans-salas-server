@@ -41,8 +41,6 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
             }
 
             const roomEmailsFromApi = roomResources.map(resource => resource.resourceEmail!);
-
-            // Obtener todas las rooms actuales de la BD
             const localRooms = await RoomService.getAllRooms();
             
             // Marcar como eliminadas las rooms que ya no están en la API
@@ -53,23 +51,21 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                 }
             }
 
-            // Procesar room resources de la API
             for (const resource of roomResources) {
-                // Buscar la room directamente del modelo para tener acceso a deletedAt
+                
                 const roomModel = await RoomService.fetchRoom(resource.resourceEmail!);
 
                 if (roomModel) {
-                    // Si la room existe, actualizarla
+                    // Si la room existe, actualizarla (para no generar vacíos en los atributos)
                     const updatedRoom = updateRoom(resource, roomModel);
 
-                    // Primero actualizar current_event si existe
+                    // Actualizar current_event, si existe
                     if (updatedRoom.current_event) {
                         await RoomService.updateRoomCurrentEvent(updatedRoom.email, updatedRoom.current_event);
                     }
 
                     // Luego actualizar is_busy basado en el estado del evento
                     await RoomService.updateIsBussyStatus(updatedRoom.email);
-
                     await RoomService.upsertRoom(updatedRoom);
 
                     // Si estaba eliminada (deletedAt), restaurarla
@@ -79,7 +75,7 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                     }
 
                 } else {
-                    // Crear nueva room
+                    // Crear las nuevas salas
                     const roomResponseDTO = mapResponseToRoomResponseDTO(resource);
                     const roomDTO = mapRoomResponseToRoomDTO(roomResponseDTO);
 

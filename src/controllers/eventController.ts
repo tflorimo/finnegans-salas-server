@@ -14,28 +14,6 @@ class EventController {
             });
         }
     }
-
-    async getEventById(req: Request, res: Response): Promise<void> {
-        try {
-            const { id } = req.params;
-            const event = await eventService.getEventById(id);
-            if (!event) {
-                res.status(404).json({
-                    error: 'Evento no encontrado',
-                    message: `No se encontró un evento con el ID ${id}`
-                });
-                return;
-            }
-            res.status(200).json(event);
-        } catch (error) {
-            res.status(500).json({
-                error: 'Error al obtener el evento',
-                message: error instanceof Error ? error.message : 'Error no conocido'
-            });
-        }
-
-    }
-
 }
 
 export default new EventController();

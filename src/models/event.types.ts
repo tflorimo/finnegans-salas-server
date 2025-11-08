@@ -1,11 +1,9 @@
-import { ResponseStatus } from "../dtos/eventDTO";
-
+import { ResponseStatus, CheckInStatus } from "../dtos/eventDTO";
 export interface Attendee {
     email: string;
     responseStatus: ResponseStatus;
     resource: boolean;
 }
-
 export interface EventAttributes {
     id: string;
     creatorMail: string;
@@ -13,7 +11,9 @@ export interface EventAttributes {
     title: string;
     startTime: Date;
     endTime: Date;
-    checkedIn: boolean;
+    checkInStatus: CheckInStatus;
     attendees: Attendee[];
     organizerEmail?: string | null;
 }
+
+export { CheckInStatus, ResponseStatus };
