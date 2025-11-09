@@ -29,7 +29,7 @@ export const setupJobs = () => {
     // Job de limpieza: actualiza estado de salas según eventos activos
     cronScheduler.schedule({
         name: 'Limpieza y actualización de estado de salas',
-        cronExpression: '* * * * *', // Cada minuto
+        cronExpression: '*/30 * * * * *', // Cada 30 segundos. TODO: Determinar en cuánto dejar para producción.
         task: async () => {
             await syncLocalRoomResourcesJob.execute();
         },

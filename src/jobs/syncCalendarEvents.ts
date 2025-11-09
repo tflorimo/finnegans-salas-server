@@ -5,8 +5,6 @@ import RoomService from '../services/roomService';
 import EventService from '../services/eventService';
 import { mapResponseToEventDTO } from '../utils/mappers/eventMapper';
 import { updateEvent } from '../utils/mappers/eventMapper';
-import { Event } from '../models';
-import { CheckInStatus } from '../dtos/eventDTO';
 
 export class SyncCalendarEventsJob implements JobRemoto {
 
@@ -46,10 +44,8 @@ export class SyncCalendarEventsJob implements JobRemoto {
 
                 const events = response.data.items || [];
                 const eventIdsFromCalendar = events.map(event => event.id!);
-
-
                 const localEvents = await EventService.getEventsByRoomId(email);
-                
+
                 // Marca como eliminados los eventos que ya no están en Calendar
                 for (const localEvent of localEvents) {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
@@ -64,10 +60,11 @@ export class SyncCalendarEventsJob implements JobRemoto {
                     if (eventSearched) {
                         // Si el evento existe, actualizarlo con el checkInStatus correcto
                         const updatedEvent = updateEvent(event, eventSearched);
-                        
+
                         // Determinar el checkInStatus correcto según el tiempo
                         const correctStatus = EventService.determineCheckInStatus(
-                            updatedEvent.startTime, 
+                            updatedEvent.startTime,
+                            updatedEvent.endTime,
                             eventSearched.checkInStatus
                         );
 
@@ -86,13 +83,17 @@ export class SyncCalendarEventsJob implements JobRemoto {
                     }
                 }
 
-                // Después de procesar todos los eventos, verificamos superposiciones
+                /* Eventos superpuestos: En principio, si hay dos eventos a la vez en la misma room, predomina
+                   El createdAt más antiguo */
+                const now = new Date();
+                let primaryEventIdForRoom: string | null = null;
+
                 for (const event of events) {
                     if (!event.id) continue;
-                    
+
                     const startTime = new Date(event.start?.dateTime!);
                     const endTime = new Date(event.end?.dateTime!);
-                    
+
                     const overlapInfo = await EventService.checkEventOverlap(
                         event.id,
                         email,
@@ -100,27 +101,40 @@ export class SyncCalendarEventsJob implements JobRemoto {
                         endTime
                     );
 
+                    const eventToUpdate = await EventService.getEventById(event.id);
+                    if (!eventToUpdate) continue;
+
+                    /* Inversión de superposición: Si el evento primario tiene checkInStatus EXPIRED, 
+                       el evento superpuesto pasa a ser primario. */
                     if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
-                        // Este es un evento secundario superpuesto 
-                        const eventToUpdate = await EventService.getEventById(event.id);
-                        if (eventToUpdate) {
-                            // Marcar como EXPIRED y agregar indicador en el título
-                            let newTitle = eventToUpdate.title;
-                            if (!newTitle.includes('(Evento Superpuesto)')) {
-                                newTitle = `${newTitle} (Evento Superpuesto)`;
-                            }
 
-                            await Event.update(
-                                { 
-                                    checkInStatus: CheckInStatus.EXPIRED,
-                                    title: newTitle
-                                },
-                                { where: { id: event.id } }
-                            );
+                        await EventService.markAsOverlapping(event.id);
+                        console.log(`[SyncCalendarEvents] Evento ${event.id} marcado como superpuesto (EXPIRED). Primario: ${overlapInfo.primaryEventId}`);
 
-                            console.log(`[SyncCalendarEvents] Evento ${event.id} marcado como superpuesto (EXPIRED). Primario: ${overlapInfo.primaryEventId}`);
+                    } else if (overlapInfo.isOverlapping && overlapInfo.isPrimary) {
+
+                        const wasCleaned = await EventService.cleanOverlappingMarker(event.id);
+
+                        if (wasCleaned) {
+                            console.log(`[SyncCalendarEvents] Evento ${event.id} promovido a primario, título limpiado.`);
+                        }
+
+                        // Si el evento primario está activo, guardarlo para asignarlo después
+                        if (now >= startTime && now <= endTime) {
+                            primaryEventIdForRoom = event.id;
+                        }
+                    } else if (!overlapInfo.isOverlapping) {
+                        // Evento sin superposición, si está activo, guardarlo
+                        if (now >= startTime && now <= endTime) {
+                            primaryEventIdForRoom = event.id;
                         }
                     }
+                }
+
+                // Asignar el evento primario activo como currentEvent de la sala
+                if (primaryEventIdForRoom) {
+                    await RoomService.updateRoomCurrentEvent(email, primaryEventIdForRoom);
+                    console.log(`[SyncCalendarEvents] Evento ${primaryEventIdForRoom} asignado como currentEvent de ${email}`);
                 }
 
             } catch (error: any | string) {

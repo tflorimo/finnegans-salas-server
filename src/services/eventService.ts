@@ -31,20 +31,6 @@ class EventService {
         return filterEventsByWeek(eventosDTO);
     }
 
-    async mapEventToDTO(event: Event, creatorName: string): Promise<EventDTOResponse> {
-        return mapEventToResponseDTO(event, creatorName);
-    }
-
-    async checkEventAttendeesForResource(event: EventAttributes): Promise<Boolean> {
-        let roomResourceFound = false;
-        for (const attendee of event.attendees) {
-            if (attendee.resource) {
-                roomResourceFound = true;
-            }
-        }
-        return roomResourceFound;
-    }
-
     async upsertEvent(eventDTO: EventDTO): Promise<void> {
         const eventValues: EventAttributes = {
             id: eventDTO.id,
@@ -57,8 +43,9 @@ class EventService {
             attendees: eventDTO.attendees,
         }
 
-        const debeGuardar = await this.checkEventAttendeesForResource(eventValues);
-        if (!debeGuardar) {
+        // Verificar que al menos un asistente sea una sala (resource)
+        const hasRoomResource = eventValues.attendees.some(attendee => attendee.resource);
+        if (!hasRoomResource) {
             console.log(`El evento con id "${eventDTO.id}" no tiene asistentes que sean salas, no se guardará.`);
             return;
         }
@@ -86,32 +73,26 @@ class EventService {
         }
     }
 
-    private async mapWithCreatorNames(events: Event[]): Promise<EventDTOResponse[]> {
-
-        const uniqueCreatorEmails = [...new Set(events.map(event => event.creatorMail))];
-        const creators = await UserService.getUsersByEmails(uniqueCreatorEmails);
-        const creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
-
-        return events.map(event => {
-            const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
-            return mapEventToResponseDTO(event, creatorName);
-        });
-    }
-
     /**
      * Determina el checkInStatus correcto para un evento según su tiempo:
      * - PENDING: si aún no pasaron 15 minutos desde el inicio
-     * - EXPIRED: si ya pasaron más de 15 minutos desde el inicio sin check-in
+     * - EXPIRED: si ya pasaron más de 15 minutos desde el inicio sin check-in O si el evento ya terminó
      * - Preserva CHECKED_IN si ya se hizo check-in
      */
-    determineCheckInStatus(startTime: Date, currentStatus?: CheckInStatus): CheckInStatus {
+    determineCheckInStatus(startTime: Date, endTime: Date, currentStatus?: CheckInStatus): CheckInStatus {
         const now = Date.now();
         const start = new Date(startTime).getTime();
+        const end = new Date(endTime).getTime();
         const fifteenMinutesAfterStart = start + (15 * 60 * 1000);
 
-        // Si ya está CHECKED_IN, mantenerlo
+        // Si ya está CHECKED_IN, mantenerlo (para historial)
         if (currentStatus === CheckInStatus.CHECKED_IN) {
             return CheckInStatus.CHECKED_IN;
+        }
+
+        // Si el evento ya terminó y estaba PENDING, marcarlo como EXPIRED
+        if (now >= end && currentStatus === CheckInStatus.PENDING) {
+            return CheckInStatus.EXPIRED;
         }
 
         // Si ya pasaron más de 15 minutos desde el inicio, es EXPIRED
@@ -121,19 +102,6 @@ class EventService {
 
         // Si todavía está en la ventana de check-in, es PENDING
         return CheckInStatus.PENDING;
-    }
-
-    // Actualiza el checkInStatus de un evento según la lógica temporal:
-    async updateCheckInStatusByTime(event: EventAttributes): Promise<void> {
-        const newStatus = this.determineCheckInStatus(event.startTime, event.checkInStatus);
-
-        if (newStatus !== event.checkInStatus) {
-            await Event.update(
-                { checkInStatus: newStatus },
-                { where: { id: event.id } }
-            );
-            console.log(`[EventService] Evento ${event.id} actualizado de ${event.checkInStatus} a ${newStatus}`);
-        }
     }
 
     // Marca un evento como eliminado (soft delete)
@@ -173,6 +141,50 @@ class EventService {
         return { canCheckIn: true };
     }
 
+    async updateEventCheckInStatus(eventId: string, status: CheckInStatus): Promise<void> {
+        await Event.update(
+            { checkInStatus: status },
+            { where: { id: eventId } }
+        );
+    }
+
+    // Marca un evento como superpuesto, actualizando su checkInStatus y título
+    async markAsOverlapping(eventId: string): Promise<void> {
+        const event = await Event.findByPk(eventId);
+        if (!event) return;
+
+        let newTitle = event.title;
+        if (!newTitle.includes('(Evento Superpuesto)')) {
+            newTitle = `${newTitle} (Evento Superpuesto)`;
+        }
+
+        await Event.update(
+            {
+                checkInStatus: CheckInStatus.EXPIRED,
+                title: newTitle
+            },
+            { where: { id: eventId } }
+        );
+    }
+
+    // Limpia el marcador de superpuesto en el título del evento
+    async cleanOverlappingMarker(eventId: string): Promise<boolean> {
+        const event = await Event.findByPk(eventId);
+        if (!event) return false;
+
+        const cleanTitle = event.title.replace(' (Evento Superpuesto)', '');
+
+        if (cleanTitle !== event.title) {
+            await Event.update(
+                { title: cleanTitle },
+                { where: { id: eventId } }
+            );
+            return true;
+        }
+
+        return false;
+    }
+
     // Verifica si dos eventos se superponen en el tiempo
     private eventsOverlap(event1Start: Date, event1End: Date, event2Start: Date, event2End: Date): boolean {
         const start1 = new Date(event1Start).getTime();
@@ -203,7 +215,7 @@ class EventService {
             return { isOverlapping: false, isPrimary: true };
         }
 
-        // El evento primario es el más antiguo (por createdAt) y es el que predomina
+        // El evento primario es el más antiguo (por createdAt), pero si está EXPIRED, pasa al siguiente
         const currentEvent = await Event.findByPk(eventId);
         if (!currentEvent) {
             return { isOverlapping: false, isPrimary: true };
@@ -212,7 +224,14 @@ class EventService {
         const allEvents = [...overlaps, currentEvent];
         allEvents.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-        const primaryEvent = allEvents[0];
+        // Buscar el primer evento que NO esté EXPIRED
+        let primaryEvent = allEvents.find(event => event.checkInStatus !== CheckInStatus.EXPIRED);
+
+        // Si todos están EXPIRED, el primario es el más antiguo
+        if (!primaryEvent) {
+            primaryEvent = allEvents[0];
+        }
+
         const isPrimary = primaryEvent.id === eventId;
 
         return {
@@ -220,6 +239,18 @@ class EventService {
             isPrimary,
             primaryEventId: primaryEvent.id,
         };
+    }
+
+    private async mapWithCreatorNames(events: Event[]): Promise<EventDTOResponse[]> {
+
+        const uniqueCreatorEmails = [...new Set(events.map(event => event.creatorMail))];
+        const creators = await UserService.getUsersByEmails(uniqueCreatorEmails);
+        const creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
+
+        return events.map(event => {
+            const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
+            return mapEventToResponseDTO(event, creatorName);
+        });
     }
 }
 

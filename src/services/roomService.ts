@@ -4,9 +4,9 @@ import { EventDTOResponse, CheckInStatus } from "../dtos/eventDTO";
 import type { RoomAttributes } from "../models/room.types";
 import { Attendee } from "../models/event.types";
 import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
+import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 import EventService from "./eventService";
 import UserService from "./userService";
-
 class RoomService {
 
     async getAllRooms(): Promise<RoomRequestDTO[]> {
@@ -63,7 +63,7 @@ class RoomService {
             const event = eventMap.get(currentEventId);
             if (event) {
                 const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
-                currentEventDTO = await EventService.mapEventToDTO(event, creatorName);
+                currentEventDTO = mapEventToResponseDTO(event, creatorName);
             } else {
                 console.warn(`[enrichRoomWithEvents] Evento fantasma detectado en ${room.email}: ${currentEventId}`);
                 // Limpia los atributos
@@ -95,6 +95,21 @@ class RoomService {
     async getAllRoomEmails(): Promise<string[]> {
         const rooms = await Room.findAll({ attributes: ['email'] });
         return rooms.map(room => room.email);
+    }
+
+    async getAllRoomModels(): Promise<Room[]> {
+        return Room.findAll();
+    }
+
+    async updateRoomBusyStatus(roomEmail: string, isBusy: boolean): Promise<void> {
+        await Room.update({ is_busy: isBusy }, { where: { email: roomEmail } });
+    }
+
+    async clearRoom(roomEmail: string): Promise<void> {
+        await Room.update(
+            { current_event: null, is_busy: false },
+            { where: { email: roomEmail } }
+        );
     }
 
     /** actualiza el current event de un room
@@ -137,42 +152,6 @@ class RoomService {
         return new Date(currentEvent.endTime).getTime() <= Date.now();
     }
 
-    async updateIsBusyStatus(roomEmail: string): Promise<void> {
-        const room = await Room.findByPk(roomEmail);
-        if (!room) {
-            return;
-        }
-
-        const currentEventId = room.get('current_event') as string | null;
-
-        // Si no hay evento actual, la sala no está ocupada
-        if (!currentEventId) {
-            await room.update({ is_busy: false });
-            return;
-        }
-
-        // Si el evento ya terminó, liberar la sala
-        if (await this.isCurrentEventEnded(currentEventId)) {
-            await room.update({ current_event: null, is_busy: false });
-            return;
-        }
-
-        // Si hay evento, verificar su checkInStatus
-        const event = await EventService.getEventById(currentEventId);
-
-        if (!event) {
-            // El evento no existe, limpiamos la sala
-            await room.update({ current_event: null, is_busy: false });
-            return;
-        }
-
-        // La sala está ocupada solo si el evento tiene checkInStatus=CHECKED_IN
-        const checkInStatus = event.get('checkInStatus') as CheckInStatus;
-        const isBusy = checkInStatus === CheckInStatus.CHECKED_IN;
-
-        await room.update({ is_busy: isBusy });
-    }
-
     /**
      * @returns La sala correspondiente al id proporcionado, o null si no existe
      * Permite buscar rooms eliminadas (paranoid: false)
@@ -200,14 +179,52 @@ class RoomService {
             return respuesta;
         }
 
-        const currentEventId = currentRoom.get('current_event') as string | null;
+        let eventId = currentRoom.get('current_event') as string | null;
 
-        if (!currentEventId) {
-            respuesta.message = 'No hay un evento actual en esta sala para hacer check-in';
-            return respuesta;
+        // Si no hay current_event, buscar eventos dentro de la ventana de check-in
+        if (!eventId) {
+            const now = new Date();
+            const thirtyMinutesFromNow = new Date(now.getTime() + (30 * 60 * 1000));
+            const thirtyMinutesAgo = new Date(now.getTime() - (30 * 60 * 1000));
+
+            const eligibleEvents = await Event.findAll({
+                where: {
+                    roomEmail: id,
+                    startTime: {
+                        [require('sequelize').Op.between]: [thirtyMinutesAgo, thirtyMinutesFromNow]
+                    },
+                    checkInStatus: CheckInStatus.PENDING
+                },
+                order: [['startTime', 'ASC']]
+            });
+
+            // Buscar el primer evento primario que esté en ventana de check-in
+            for (const candidateEvent of eligibleEvents) {
+                // Verificar ventana de check-in
+                const canCheckIn = EventService.canCheckIn(candidateEvent.startTime);
+                if (!canCheckIn.canCheckIn) continue;
+
+                // Verificar que sea primario (no superpuesto)
+                const overlapInfo = await EventService.checkEventOverlap(
+                    candidateEvent.id,
+                    id,
+                    candidateEvent.startTime,
+                    candidateEvent.endTime
+                );
+
+                if (!overlapInfo.isOverlapping || overlapInfo.isPrimary) {
+                    eventId = candidateEvent.id;
+                    break;
+                }
+            }
+
+            if (!eventId) {
+                respuesta.message = 'No hay eventos disponibles para hacer check-in en este momento';
+                return respuesta;
+            }
         }
 
-        const event = await EventService.getEventById(currentEventId);
+        const event = await EventService.getEventById(eventId);
 
         if (!event) {
             respuesta.message = 'Evento no encontrado';
@@ -247,7 +264,12 @@ class RoomService {
 
         // Realizar el check-in
         await event.update({ checkInStatus: CheckInStatus.CHECKED_IN });
-        await currentRoom.update({ is_busy: true });
+        
+        // Asignar como current_event y marcar sala como ocupada
+        await currentRoom.update({ 
+            current_event: event.id,
+            is_busy: true 
+        });
 
         respuesta.success = true;
         respuesta.event = event;
