@@ -164,7 +164,7 @@ class RoomService {
         return room;
     }
 
-    async checkInCurrentEvent(id: string, userEmail: string): Promise<{ success: boolean; event?: Event | null; message?: string }> {
+    async checkInEvent(roomEmail: string, eventId: string, userEmail: string): Promise<{ success: boolean; event?: Event | null; message?: string }> {
 
         const respuesta = {
             success: false,
@@ -172,62 +172,23 @@ class RoomService {
             message: 'template de mensaje'
         }
 
-        const currentRoom = await this.fetchRoom(id);
+        const currentRoom = await this.fetchRoom(roomEmail);
 
         if (!currentRoom) {
             respuesta.message = 'Sala no encontrada';
             return respuesta;
         }
 
-        let eventId = currentRoom.get('current_event') as string | null;
-
-        // Si no hay current_event, buscar eventos dentro de la ventana de check-in
-        if (!eventId) {
-            const now = new Date();
-            const thirtyMinutesFromNow = new Date(now.getTime() + (30 * 60 * 1000));
-            const thirtyMinutesAgo = new Date(now.getTime() - (30 * 60 * 1000));
-
-            const eligibleEvents = await Event.findAll({
-                where: {
-                    roomEmail: id,
-                    startTime: {
-                        [require('sequelize').Op.between]: [thirtyMinutesAgo, thirtyMinutesFromNow]
-                    },
-                    checkInStatus: CheckInStatus.PENDING
-                },
-                order: [['startTime', 'ASC']]
-            });
-
-            // Buscar el primer evento primario que esté en ventana de check-in
-            for (const candidateEvent of eligibleEvents) {
-                // Verificar ventana de check-in
-                const canCheckIn = EventService.canCheckIn(candidateEvent.startTime);
-                if (!canCheckIn.canCheckIn) continue;
-
-                // Verificar que sea primario (no superpuesto)
-                const overlapInfo = await EventService.checkEventOverlap(
-                    candidateEvent.id,
-                    id,
-                    candidateEvent.startTime,
-                    candidateEvent.endTime
-                );
-
-                if (!overlapInfo.isOverlapping || overlapInfo.isPrimary) {
-                    eventId = candidateEvent.id;
-                    break;
-                }
-            }
-
-            if (!eventId) {
-                respuesta.message = 'No hay eventos disponibles para hacer check-in en este momento';
-                return respuesta;
-            }
-        }
-
         const event = await EventService.getEventById(eventId);
 
         if (!event) {
             respuesta.message = 'Evento no encontrado';
+            return respuesta;
+        }
+
+        // Verificar que el evento pertenece a esta sala
+        if (event.roomEmail !== roomEmail) {
+            respuesta.message = 'El evento no pertenece a esta sala';
             return respuesta;
         }
 
@@ -254,11 +215,24 @@ class RoomService {
 
         const startTime = event.get('startTime') as Date;
 
-        // Usar la validación de EventService para check-in window
+        // Verificar ventana de check-in (30 min antes - 15 min después del inicio)
         const canCheckIn = EventService.canCheckIn(startTime);
 
         if (!canCheckIn.canCheckIn) {
             respuesta.message = canCheckIn.reason || "No es posible realizar check-in en este momento.";
+            return respuesta;
+        }
+
+        // Verificar que el evento sea primario (no superpuesto)
+        const overlapInfo = await EventService.checkEventOverlap(
+            eventId,
+            roomEmail,
+            event.startTime,
+            event.endTime
+        );
+
+        if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
+            respuesta.message = `Este evento está superpuesto. Solo puedes hacer check-in en el evento primario.`;
             return respuesta;
         }
 
@@ -267,7 +241,7 @@ class RoomService {
         
         // Asignar como current_event y marcar sala como ocupada
         await currentRoom.update({ 
-            current_event: event.id,
+            current_event: eventId,
             is_busy: true 
         });
 
