@@ -1,15 +1,17 @@
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model, Optional } from "sequelize";
 import sequelize from "../config/database";
 import { Attendee, EventAttributes } from "./event.types";
+import { CheckInStatus } from "../dtos/eventDTO";
 
-export class Event extends Model<EventAttributes> implements EventAttributes {
+interface EventCreationAttributes extends Optional<EventAttributes, never> { }
+export class Event extends Model<EventAttributes, EventCreationAttributes> implements EventAttributes {
     public id!: string;
     public creatorMail!: string;
     public roomEmail!: string;
     public startTime!: Date;
     public title!: string;
     public endTime!: Date;
-    public checkedIn!: boolean;
+    public checkInStatus!: CheckInStatus;
     public attendees!: Attendee[];
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
@@ -17,63 +19,60 @@ export class Event extends Model<EventAttributes> implements EventAttributes {
 }
 
 Event.init(
-{
-    id: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true,
-        primaryKey: true,
-        autoIncrement: false
-    },
-    creatorMail: {
-        type: DataTypes.STRING,
-        allowNull: false,
-    },
-    /**
-     * @todo ver nota de abajo
-     */
-    roomEmail: {  //  roomEmail corresponde al calendarId en google calendar. en un mundo ideal, los usuarios crean eventos siempre en una sala. VER
-        type: DataTypes.STRING,
-        allowNull: false,
-        references: {
-            model: 'rooms',
-            key: 'email'
-        }
-    },
-    startTime: {
-        type: DataTypes.DATE,
-        allowNull: false,
-    },
+    {
+        id: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            unique: true,
+            primaryKey: true,
+            autoIncrement: false
+        },
+        creatorMail: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        roomEmail: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            references: {
+                model: 'rooms',
+                key: 'email'
+            }
+        },
+        startTime: {
+            type: DataTypes.DATE,
+            allowNull: false,
+        },
 
-    title: {
-        type: DataTypes.STRING,
-        allowNull: false,
-    },
-    
-    endTime: {
-        type: DataTypes.DATE,
-        allowNull: false,
-    },
-    checkedIn: {
-        type: DataTypes.BOOLEAN,   // sirve para identificar que eventos no dieron checkin y de esa manera eliminarlos del calendar y de la bd pasado los 15 min con los jobs
-        defaultValue: false,
-    },
-    attendees: {
-        type: DataTypes.JSON, 
-        allowNull: true,
-    },
-}, 
-{
-    sequelize,
-    timestamps: true,
-    paranoid: true, // borrado logico
-    tableName: 'events',
-    modelName: 'Event',
-    indexes: [
-        { fields: ['roomEmail'] },
-        { fields: ['startTime'] },
-        { fields: ['checkedIn'] }
-    ],
-});
+        title: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
 
-export default Event;
+        endTime: {
+            type: DataTypes.DATE,
+            allowNull: false,
+        },
+        checkInStatus: {
+            type: DataTypes.ENUM(...Object.values(CheckInStatus)),
+            defaultValue: CheckInStatus.PENDING,
+            allowNull: false,
+        },
+        attendees: {
+            type: DataTypes.JSON,
+            allowNull: true,
+        },
+    },
+    {
+        sequelize,
+        timestamps: true,
+        paranoid: true,
+        tableName: 'events',
+        modelName: 'Event',
+        indexes: [
+            { fields: ['roomEmail'] },
+            { fields: ['startTime'] },
+            { fields: ['endTime'] },
+            { fields: ['checkInStatus'] },
+        ],
+    });

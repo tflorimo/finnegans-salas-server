@@ -1,25 +1,37 @@
 import { SyncCalendarEventsJob } from "../jobs/syncCalendarEvents";
-import { SyncRoomResourcesJob } from "../jobs/syncRoomResources";
+import { SyncApiRoomResourcesJob } from "../jobs/syncApiRoomResources";
+import { SyncLocalRoomResourcesJob } from "../jobs/syncLocalRoomResources";
 import cronScheduler from "./cronScheduler";
 
 export const setupJobs = () => {
-    const syncRoomResourcesJob = new SyncRoomResourcesJob();
+    const syncApiRoomResourcesJob = new SyncApiRoomResourcesJob();
     const syncCalendarEvents = new SyncCalendarEventsJob();
+    const syncLocalRoomResourcesJob = new SyncLocalRoomResourcesJob();
+
+    cronScheduler.schedule({
+        name: 'Chequeo y sincronización de room resources desde API de Google',
+        cronExpression: '* * * * *', // Cada minuto -> @TODO: Cambiar a semana en producción
+        task: async () => {
+            await syncApiRoomResourcesJob.execute();
+        },
+        enabled: true
+    });
 
     cronScheduler.schedule({
         name: 'Descarga de eventos de Calendar',
-        cronExpression: '* * * * *', // Cada minuto
+        cronExpression: '* * * * *', // Cada minuto 
         task: async () => {
             syncCalendarEvents.execute();
         },
         enabled: true
     });
 
+    // Job de limpieza: actualiza estado de salas según eventos activos
     cronScheduler.schedule({
-        name: 'Chequeo y sincronización de room resources',
-        cronExpression: '0 */1 * * *', // Cada 1 hora
+        name: 'Limpieza y actualización de estado de salas',
+        cronExpression: '*/30 * * * * *', // Cada 30 segundos. TODO: Determinar en cuánto dejar para producción.
         task: async () => {
-            await syncRoomResourcesJob.execute();
+            await syncLocalRoomResourcesJob.execute();
         },
         enabled: true
     });

@@ -1,15 +1,12 @@
 export type UserRole = "admin" | "user";
-
 export interface UserBase {
     email: string;
-    name: string;
+    name: string | null;
     role: UserRole;
 }
-
 export interface PersistedUser extends UserBase {
     id: number;
 }
-
 export interface UserAttributes extends PersistedUser {
     createdAt?: Date;
     updatedAt?: Date;
@@ -17,7 +14,6 @@ export interface UserAttributes extends PersistedUser {
 }
 
 export type JWTPayload = Pick<PersistedUser, "id" | "email" | "role">;
-
 export interface AuthCheckResult {
     authenticated: boolean;
     user?: PersistedUser;

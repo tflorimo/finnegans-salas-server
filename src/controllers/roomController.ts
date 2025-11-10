@@ -1,12 +1,10 @@
 import roomService from "../services/roomService";
-import { Request, Response } from "express"; // tener cuidado con la importacion correcta de Request y Response, que sea de express sí o sí
-
+import { Request, Response } from "express"; 
 class RoomController {
-    private roomService = roomService;
 
     async getAllRooms(req: Request, res: Response): Promise<void> {
         try {
-            const rooms = await this.roomService.getAllRooms();
+            const rooms = await roomService.getAllRooms();
             res.status(200).json(rooms);
         } catch (error) {
             res.status(500).json({
@@ -19,7 +17,7 @@ class RoomController {
     async getRoomById(req: Request, res: Response): Promise<void> { 
         try {
             const { id } = req.params;
-            const room = await this.roomService.getRoomById(id);
+            const room = await roomService.getRoomById(id);
             
             if (!room) {
                 res.status(404).json({
@@ -40,25 +38,35 @@ class RoomController {
     
     async checkIn(req: Request, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
-            const { userEmail } = req.body.user; 
-            const resultado = await this.roomService.checkInCurrentEvent(id, userEmail);
+            const { roomId, eventId } = req.params;
+            const userEmail = (req as any).user?.email;
+
+            if (!eventId) {
+                res.status(400).json({
+                    error: "ID de evento requerido",
+                    message: "Debes proporcionar el ID del evento para hacer check-in"
+                });
+                return;
+            }
+
+            const resultado = await roomService.checkInEvent(roomId, eventId, userEmail);
+            
             if (!resultado.success) {
                 res.status(400).json({
-                    error: "Hubo un error al intentar hacer checkin del evento actual de la sala",
+                    error: "Hubo un error al intentar hacer check-in",
                     message: resultado.message
                 });
                 return;
             }
 
             res.status(200).json({
-                message: 'Checkin realizado con éxito',
+                message: 'Check-in realizado con éxito',
                 event: resultado.event
             });
         
         } catch (error) {
             res.status(500).json({
-                error: 'Error al hacer checkin en el evento',
+                error: 'Error al hacer check-in en el evento',
                 message: error instanceof Error ? error.message : 'Error no conocido'
             });
         }

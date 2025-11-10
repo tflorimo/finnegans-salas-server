@@ -1,8 +1,9 @@
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model, Optional } from "sequelize";
 import sequelize from "../config/database";
 import { RoomAttributes } from "./room.types";
 
-export class Room extends Model<RoomAttributes> implements RoomAttributes {
+interface RoomCreationAttributes extends Optional<RoomAttributes, 'createdAt' | 'updatedAt' | 'deletedAt'> {}
+export class Room extends Model<RoomAttributes, RoomCreationAttributes> implements RoomAttributes {
     public email!: string;
     public name!: string;
     public capacity!: number;
@@ -73,15 +74,16 @@ Room.init(
 
     },
     {   
-    sequelize,
-    timestamps: true,
-    paranoid: true, // borrado logico
-    tableName: 'rooms',  //nombre en la tabla de la bd
-    modelName: 'Room',
-    indexes: [
-        { fields: ['email'] },
-        { fields: ['name'] },
-    ],
-});
-
-export default Room;
+        sequelize,
+        timestamps: true,
+        paranoid: true,
+        tableName: 'rooms',
+        modelName: 'Room',
+        indexes: [
+            { fields: ['email'], unique: true },
+            { fields: ['name'] },
+            { fields: ['is_busy'] },
+            { fields: ['current_event'] },
+        ],
+    }
+);

@@ -32,7 +32,7 @@ class AuthService {
       throw new Error("No se pudo obtener el email de Google");
     }
 
-    // Donde se verifica si el usuario tiene acceso permitido, por ahora, sólo los dominios. 
+    // Donde se verifica si el usuario tiene acceso permitido, por ahora, sólo la lista de mails permitidos. 
     ensureOAuthAccess(email);
 
     const role = userService.determineUserRole(email);
@@ -50,7 +50,7 @@ class AuthService {
       success: "true",
       token: accessToken,
       email: user.email,
-      name: user.name,
+      name: user.name ?? "",
       role,
     });
 

@@ -6,6 +6,6 @@ const router = Router();
 
 router.get('/', authenticate, RoomController.getAllRooms);
 router.get('/:id', authenticate, RoomController.getRoomById);
-router.patch('/:id/checkin', authenticate, RoomController.checkIn);
+router.patch('/:roomId/events/:eventId/checkin', authenticate, RoomController.checkIn);
 
 export default router;
