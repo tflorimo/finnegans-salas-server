@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import authService from "../services/authService";
+import auditService from "../services/auditService";
 import jwtService from "../services/jwtService";
 import userService from "../services/userService";
 import {
@@ -81,8 +82,15 @@ class AuthController {
     }
   };
 
-  logout = (_: Request, res: Response): void => {
+  logout = (req: Request, res: Response): void => {
+    // implementación de auditoría cambiamos a request
+    const userEmail = (req as any).user?.email ?? null;
+
     clearRefreshCookie(res);
+
+    // implementación de auditoría
+    void auditService.recordLogout(userEmail);
+
     res.status(204).send();
   };
 }
