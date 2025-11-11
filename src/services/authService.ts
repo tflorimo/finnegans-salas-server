@@ -3,6 +3,8 @@ import { oauth2Client } from "../config/googleOAuth";
 import userService from "./userService";
 import JwtService from "./jwtService";
 import { ensureOAuthAccess } from "../config/oAuthAccess";
+import auditService from "./auditService";
+
 
 const oauth2 = google.oauth2("v2");
 
@@ -44,6 +46,8 @@ class AuthService {
 
     const accessToken = JwtService.generateAccessToken(user.id, user.email, user.role);
     const refreshToken = JwtService.generateRefreshToken(user.id);
+     // registrar login de forma asíncrona, no bloquea la respuesta
+    void auditService.recordLogin(user.email);
 
     const frontendURL = process.env.FRONTEND_URL!;
     const queryParams = new URLSearchParams({
