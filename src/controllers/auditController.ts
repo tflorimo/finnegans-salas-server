@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import auditService from "../services/auditService";
 
-const getAll = async (req: Request, res: Response) => {
+const getAll = async (req: Request, res: Response) => { 
   try {
     const limit = Number(req.query.limit ?? 100);
     const audits = await auditService.getAllAudits(limit);

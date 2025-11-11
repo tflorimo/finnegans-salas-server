@@ -42,7 +42,7 @@ class RoomController {
             const { roomId, eventId } = req.params;
             const userEmail = (req as any).user?.email;
 
-            if (!eventId) {
+            if (!eventId) { // Validar que eventId esté presente
                 res.status(400).json({
                     error: "ID de evento requerido",
                     message: "Debes proporcionar el ID del evento para hacer check-in"
@@ -50,7 +50,7 @@ class RoomController {
                 return;
             }
 
-            const resultado = await roomService.checkInEvent(roomId, eventId, userEmail);
+            const resultado = await roomService.checkInEvent(roomId, eventId, userEmail);  // llamar al servicio para hacer check-in
 
             if (!resultado.success) {
                 res.status(400).json({
@@ -59,7 +59,7 @@ class RoomController {
                 });
                 return;
             }
-            if (resultado.success) {
+            if (resultado.success) {  // si el resultado es satiisfactorio, registrar auditoría
                 void auditService.recordCheckin(userEmail, eventId);
             }
 

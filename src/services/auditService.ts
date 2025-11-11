@@ -15,8 +15,7 @@ const log = async (payload: AuditPayload): Promise<void> => {
       eventId: payload.eventId ?? null,
     });
   } catch (err) {
-    // No romper el flujo de la app si falla la auditoría
-    // eslint-disable-next-line no-console
+
     console.error("auditService.log error:", err);
   }
 };
@@ -34,7 +33,7 @@ const recordCheckin = async (userEmail?: string | null, eventId?: string | null)
 };
 
 /**
- * getAllAudits: devuelve hasta `limit` registros ordenados por createdAt desc.
+ * getAllAudits: devuelve hasta `limit` registros ordenados por createdAt desc
  */
 const getAllAudits = async (limit?: number): Promise<AuditDTO[]> => {
   const maxLimit = 200;
