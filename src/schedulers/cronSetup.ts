@@ -2,11 +2,13 @@ import { SyncCalendarEventsJob } from "../jobs/syncCalendarEvents";
 import { SyncApiRoomResourcesJob } from "../jobs/syncApiRoomResources";
 import { SyncLocalRoomResourcesJob } from "../jobs/syncLocalRoomResources";
 import cronScheduler from "./cronScheduler";
+import CleanupAuditsJob from "../jobs/cleanupAuditsJob";
 
 export const setupJobs = () => {
     const syncApiRoomResourcesJob = new SyncApiRoomResourcesJob();
     const syncCalendarEvents = new SyncCalendarEventsJob();
     const syncLocalRoomResourcesJob = new SyncLocalRoomResourcesJob();
+    const cleanupAuditsJob = new CleanupAuditsJob();
 
     cronScheduler.schedule({
         name: 'Chequeo y sincronización de room resources desde API de Google',
@@ -32,6 +34,14 @@ export const setupJobs = () => {
         cronExpression: '*/30 * * * * *', // Cada 30 segundos. TODO: Determinar en cuánto dejar para producción.
         task: async () => {
             await syncLocalRoomResourcesJob.execute();
+        },
+        enabled: true
+    });
+    cronScheduler.schedule({
+        name: 'Limpieza de auditorías antiguas',
+        cronExpression: '0 3 * * *', // Cada día a las 03:00
+        task: async () => {
+            await cleanupAuditsJob.execute();
         },
         enabled: true
     });
