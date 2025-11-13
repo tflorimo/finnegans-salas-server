@@ -3,7 +3,6 @@ import { google, Auth } from 'googleapis';
 import path from 'path';
 import { updateRoom, mapRoomResponseToRoomDTO, mapResponseToRoomResponseDTO } from '../utils/mappers/roomMapper';
 import RoomService from '../services/roomService';
-
 export class SyncApiRoomResourcesJob implements JobRemoto {
     ADMIN_ACCOUNT_IMPERSONATE: string;
     SERVICE_ACCOUNT_FILE: string;
@@ -31,9 +30,9 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
         try {
             const response = await admin.resources.calendars.list({
                 customer: process.env.CUSTOMER_ID,
-                maxResults: 25,
+                maxResults: 100,
             });
-
+            
             const roomResources = response.data.items || [];
             if (!roomResources.length) {
                 console.log('No se encontraron room resources.');
@@ -43,7 +42,7 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
             const roomEmailsFromApi = roomResources.map(resource => resource.resourceEmail!);
             const localRooms = await RoomService.getAllRooms();
             
-            // Marcar como eliminadas las rooms que ya no están en la API
+            // Marca como eliminadas las rooms que ya no están en la API (soft delete)
             for (const localRoom of localRooms) {
                 if (!roomEmailsFromApi.includes(localRoom.email)) {
                     console.log(`[SyncApiRoomResources] Room ${localRoom.email} eliminada de la API, marcando deletedAt...`);
@@ -56,24 +55,22 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                 const roomModel = await RoomService.fetchRoom(resource.resourceEmail!);
 
                 if (roomModel) {
-                    // Si la room existe, actualizarla (para no generar vacíos en los atributos)
+                    // Lógica para los recursos ya existentes en la DB
                     const updatedRoom = updateRoom(resource, roomModel);
 
-                    // Actualizar current_event, si existe
                     if (updatedRoom.current_event) {
                         await RoomService.updateRoomCurrentEvent(updatedRoom.email, updatedRoom.current_event);
                     }
 
                     await RoomService.upsertRoom(updatedRoom);
 
-                    // Si estaba eliminada (deletedAt), restaurarla
                     if (roomModel.deletedAt) {
                         await RoomService.restoreRoom(resource.resourceEmail!);
                         console.log(`[SyncApiRoomResources] Room ${resource.resourceEmail} restaurada`);
                     }
 
                 } else {
-                    // Crear las nuevas salas
+                    // Lógica para las nuevos recursos
                     const roomResponseDTO = mapResponseToRoomResponseDTO(resource);
                     const roomDTO = mapRoomResponseToRoomDTO(roomResponseDTO);
 
