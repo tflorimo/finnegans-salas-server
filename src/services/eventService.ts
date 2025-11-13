@@ -1,7 +1,6 @@
 import { Event, Room } from "../models";
 import { EventDTO, EventDTOResponse, CheckInStatus } from "../dtos/eventDTO";
 import { EventAttributes } from "../models/event.types";
-import roomService from "./roomService";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 import { filterEventsByWeek } from "../utils/dateUtils";
 import UserService from "./userService";
@@ -21,13 +20,20 @@ class EventService {
         return Event.findByPk(id, { paranoid: false }); // paranoid: false permite buscar también registros eliminados
     }
 
+    async getEventsByIds(ids: string[]): Promise<Event[]> {
+        return Event.findAll({
+            where: { id: ids },
+            paranoid: true,
+        });
+    }
+
     async getEventsByRoomId(roomId: string): Promise<EventDTOResponse[]> {
         const eventos = await Event.findAll({
             where: { roomEmail: roomId },
             include: [{ model: Room, as: "room", attributes: ["name"] }],
         });
 
-        const eventosDTO = await this.mapWithCreatorNames(eventos);
+        const eventosDTO = await this.mapWithCreatorNamesAndOverlap(eventos);
         return filterEventsByWeek(eventosDTO);
     }
 
@@ -43,33 +49,19 @@ class EventService {
             attendees: eventDTO.attendees,
         }
 
-        // Verificar que al menos un asistente sea una sala (resource)
         const hasRoomResource = eventValues.attendees.some(attendee => attendee.resource);
         if (!hasRoomResource) {
             console.log(`El evento con id "${eventDTO.id}" no tiene asistentes que sean salas, no se guardará.`);
             return;
         }
-
-        await Event.upsert(eventValues);
-
-        const now = new Date();
-        const startTime = new Date(eventDTO.startTime);
-        const endTime = new Date(eventDTO.endTime);
-
-        if (now >= startTime && now <= endTime) {
-            const overlapInfo = await this.checkEventOverlap(
-                eventDTO.id,
-                eventDTO.roomEmail,
-                startTime,
-                endTime
-            );
-
-            // Solo asignar como currentEvent si es el evento primario
-            if (!overlapInfo.isOverlapping || overlapInfo.isPrimary) {
-                await roomService.updateRoomCurrentEvent(eventDTO.roomEmail, eventDTO.id);
-            } else {
-                console.log(`[EventService] Evento ${eventDTO.id} es superpuesto, no se asigna como currentEvent`);
-            }
+        const existingEvent = await Event.findByPk(eventDTO.id);
+        
+        if (existingEvent) {
+            await Event.update(eventValues, {
+                where: { id: eventDTO.id }
+            });
+        } else {
+            await Event.create(eventValues);
         }
     }
 
@@ -78,6 +70,7 @@ class EventService {
      * - PENDING: si aún no pasaron 15 minutos desde el inicio
      * - EXPIRED: si ya pasaron más de 15 minutos desde el inicio sin check-in O si el evento ya terminó
      * - Preserva CHECKED_IN si ya se hizo check-in
+     * - Permite re-evaluación para eventos promovidos de superpuestos
      */
     determineCheckInStatus(startTime: Date, endTime: Date, currentStatus?: CheckInStatus): CheckInStatus {
         const now = Date.now();
@@ -85,22 +78,22 @@ class EventService {
         const end = new Date(endTime).getTime();
         const fifteenMinutesAfterStart = start + (15 * 60 * 1000);
 
-        // Si ya está CHECKED_IN, mantenerlo (para historial)
         if (currentStatus === CheckInStatus.CHECKED_IN) {
             return CheckInStatus.CHECKED_IN;
         }
-
-        // Si el evento ya terminó y estaba PENDING, marcarlo como EXPIRED
-        if (now >= end && currentStatus === CheckInStatus.PENDING) {
+        if (now >= end) {
             return CheckInStatus.EXPIRED;
         }
 
-        // Si ya pasaron más de 15 minutos desde el inicio, es EXPIRED
+
+        if (now <= fifteenMinutesAfterStart) {
+            return CheckInStatus.PENDING;
+        }
+
         if (now > fifteenMinutesAfterStart) {
             return CheckInStatus.EXPIRED;
         }
 
-        // Si todavía está en la ventana de check-in, es PENDING
         return CheckInStatus.PENDING;
     }
 
@@ -113,7 +106,7 @@ class EventService {
         }
     }
 
-    // Restaura un evento eliminado (deletedAt) -> Es por las cucas
+    // Restaura un evento eliminado (deletedAt) -> Es por las dudas
     async restoreEvent(eventId: string): Promise<void> {
         await Event.restore({ where: { id: eventId } });
         console.log(`[EventService] Evento ${eventId} restaurado`);
@@ -124,11 +117,16 @@ class EventService {
      * - Hasta 30 minutos antes del startTime
      * - Hasta 15 minutos después del startTime
      */
-    canCheckIn(startTime: Date): { canCheckIn: boolean; reason?: string } {
+    canCheckIn(startTime: Date, endTime: Date): { canCheckIn: boolean; reason?: string } {
         const now = Date.now();
         const start = new Date(startTime).getTime();
+        const end = new Date(endTime).getTime();
         const thirtyMinutesBefore = start - (30 * 60 * 1000); // @TODO: modificar a gusto
         const fifteenMinutesAfter = start + (15 * 60 * 1000);
+
+        if (now >= end) {
+            return { canCheckIn: false, reason: "El evento ya ha terminado." };
+        }
 
         if (now < thirtyMinutesBefore) {
             return { canCheckIn: false, reason: "Aún no puedes hacer check-in. Intenta 30 minutos antes del evento." };
@@ -142,47 +140,39 @@ class EventService {
     }
 
     async updateEventCheckInStatus(eventId: string, status: CheckInStatus): Promise<void> {
+       
         await Event.update(
             { checkInStatus: status },
-            { where: { id: eventId } }
+            { 
+                where: { id: eventId },
+                silent: true  
+            }
         );
     }
 
-    // Marca un evento como superpuesto, actualizando su checkInStatus y título
-    async markAsOverlapping(eventId: string): Promise<void> {
-        const event = await Event.findByPk(eventId);
-        if (!event) return;
-
-        let newTitle = event.title;
-        if (!newTitle.includes('(Evento Superpuesto)')) {
-            newTitle = `${newTitle} (Evento Superpuesto)`;
-        }
-
-        await Event.update(
-            {
-                checkInStatus: CheckInStatus.EXPIRED,
-                title: newTitle
-            },
-            { where: { id: eventId } }
-        );
-    }
-
-    // Limpia el marcador de superpuesto en el título del evento
-    async cleanOverlappingMarker(eventId: string): Promise<boolean> {
+    // Marca un evento como superpuesto, actualizando su checkInStatus
+    async markAsOverlapping(eventId: string): Promise<boolean> {
         const event = await Event.findByPk(eventId);
         if (!event) return false;
 
-        const cleanTitle = event.title.replace(' (Evento Superpuesto)', '');
-
-        if (cleanTitle !== event.title) {
-            await Event.update(
-                { title: cleanTitle },
-                { where: { id: eventId } }
-            );
-            return true;
+        if (event.checkInStatus === CheckInStatus.EXPIRED) {
+            return false;
         }
 
-        return false;
+        const eventWasModified = event.createdAt.getTime() !== event.updatedAt.getTime();
+        
+        if (event.checkInStatus === CheckInStatus.CHECKED_IN && !eventWasModified) {
+            return false;
+        }
+
+        await Event.update(
+            { checkInStatus: CheckInStatus.EXPIRED },
+            { 
+                where: { id: eventId },
+                silent: true  
+            }
+        );
+        return true;
     }
 
     // Verifica si dos eventos se superponen en el tiempo
@@ -215,22 +205,73 @@ class EventService {
             return { isOverlapping: false, isPrimary: true };
         }
 
-        // El evento primario es el más antiguo (por createdAt), pero si está EXPIRED, pasa al siguiente
         const currentEvent = await Event.findByPk(eventId);
         if (!currentEvent) {
             return { isOverlapping: false, isPrimary: true };
         }
 
         const allEvents = [...overlaps, currentEvent];
-        allEvents.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-        // Buscar el primer evento que NO esté EXPIRED
-        let primaryEvent = allEvents.find(event => event.checkInStatus !== CheckInStatus.EXPIRED);
+        const now = Date.now();
+        const activeEvents = allEvents.filter(event => {
+            const eventStart = new Date(event.startTime).getTime();
+            const eventEnd = new Date(event.endTime).getTime();
+            const fifteenMinutesAfterStart = eventStart + (15 * 60 * 1000);
+            
+            if (now < eventStart) {
+                return false;
+            }
+            
+            if (now >= eventEnd) {
+                return false;
+            }
+            
+            if (now > fifteenMinutesAfterStart && event.checkInStatus !== CheckInStatus.CHECKED_IN) {
+                return false;
+            }
+            
+            return true;
+        });
 
-        // Si todos están EXPIRED, el primario es el más antiguo
-        if (!primaryEvent) {
-            primaryEvent = allEvents[0];
+        if (activeEvents.length === 0) {
+            return { isOverlapping: true, isPrimary: false, primaryEventId: undefined };
         }
+
+        activeEvents.sort((a, b) => {
+            const aModified = a.createdAt.getTime() !== a.updatedAt.getTime();
+            const bModified = b.createdAt.getTime() !== b.updatedAt.getTime();
+            const aStartTime = new Date(a.startTime).getTime();
+            const bStartTime = new Date(b.startTime).getTime();
+            
+            if (aModified && !bModified) {
+                if (now >= bStartTime) {
+                    return 1; 
+                }
+                return -1; 
+            }
+            
+            if (!aModified && bModified) {
+                if (now >= aStartTime) {
+                    return -1; 
+                }
+                return 1; 
+            }
+
+            const aEffectiveTime = aModified ? a.updatedAt.getTime() : a.createdAt.getTime();
+            const bEffectiveTime = bModified ? b.updatedAt.getTime() : b.createdAt.getTime();
+
+            if (aEffectiveTime !== bEffectiveTime) {
+                return aEffectiveTime - bEffectiveTime;
+            }
+
+            if (aStartTime !== bStartTime) {
+                return aStartTime - bStartTime;
+            }
+
+            return a.id.localeCompare(b.id);
+        });
+
+        const primaryEvent = activeEvents[0];
 
         const isPrimary = primaryEvent.id === eventId;
 
@@ -249,8 +290,32 @@ class EventService {
 
         return events.map(event => {
             const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
-            return mapEventToResponseDTO(event, creatorName);
+            return mapEventToResponseDTO(event, creatorName, true);
         });
+    }
+
+    private async mapWithCreatorNamesAndOverlap(events: Event[]): Promise<EventDTOResponse[]> {
+
+        const uniqueCreatorEmails = [...new Set(events.map(event => event.creatorMail))];
+        const creators = await UserService.getUsersByEmails(uniqueCreatorEmails);
+        const creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
+
+        const eventDTOs = await Promise.all(events.map(async event => {
+            const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
+
+            const overlapInfo = await this.checkEventOverlap(
+                event.id,
+                event.roomEmail,
+                event.startTime,
+                event.endTime
+            );
+
+            const isPrimary = !overlapInfo.isOverlapping || overlapInfo.isPrimary;
+
+            return mapEventToResponseDTO(event, creatorName, isPrimary);
+        }));
+
+        return eventDTOs;
     }
 }
 

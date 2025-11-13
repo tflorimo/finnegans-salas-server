@@ -17,7 +17,7 @@ class RoomService {
 
         const eventPromises = currentEventIds.map(id => EventService.getEventById(id));
         const eventResults = await Promise.all(eventPromises);
-        const events = eventResults.filter((event): event is Event => event !== null);
+        const events = eventResults.filter((event): event is Event => event !== null && !event.deletedAt);
 
         const creatorEmails = [...new Set(events.map(event => event.creatorMail))];
         const creators = await UserService.getUsersByEmails(creatorEmails);
@@ -39,9 +39,11 @@ class RoomService {
 
         if (currentEventId) {
             event = await EventService.getEventById(currentEventId);
-            if (event) {
+            if (event && !event.deletedAt) {
                 const creators = await UserService.getUsersByEmails([event.creatorMail]);
                 creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
+            } else {
+                event = null;
             }
         }
 
@@ -58,15 +60,15 @@ class RoomService {
         const currentEventId = room.get('current_event') as string | null;
         let currentEventDTO: EventDTOResponse | null = null;
 
-        // Si hay current_event, obtenerlo de la db con toda su info
         if (currentEventId) {
             const event = eventMap.get(currentEventId);
-            if (event) {
+            if (event && !event.deletedAt) {
                 const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
-                currentEventDTO = mapEventToResponseDTO(event, creatorName);
+                
+                currentEventDTO = mapEventToResponseDTO(event, creatorName, true);
+
             } else {
-                console.warn(`[enrichRoomWithEvents] Evento fantasma detectado en ${room.email}: ${currentEventId}`);
-                // Limpia los atributos
+                console.warn(`[enrichRoomWithEvents] Evento ${event ? 'eliminado' : 'fantasma'} detectado en ${room.email}: ${currentEventId}`);
                 await room.update({ current_event: null, is_busy: false });
             }
         }
@@ -76,8 +78,6 @@ class RoomService {
     }
 
     async upsertRoom(roomDTO: RoomDTO): Promise<void> {
-        // current_event no viene en el DTO porque no nos interesa que esté en el DTO
-        // si nos interesa que se guarde en la base de datos, por eso forma parte de roomAttributes y de la clase Room
         const roomValues: RoomAttributes = {
             email: roomDTO.email,
             name: roomDTO.name,
@@ -87,8 +87,9 @@ class RoomService {
             type: roomDTO.type,
             is_busy: roomDTO.is_busy,
             current_event: null,
-            resources: roomDTO.resources ?? null
-        }
+            resources: roomDTO.resources ?? null,
+        };
+
         await Room.upsert(roomValues);
     }
 
@@ -116,38 +117,47 @@ class RoomService {
     * @param roomEmail el mail d la sala a actualizar
     * @param eventId el eventId el evento que le vamos a poner a la sala como current event
     */
-    async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<void> {
+    async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<boolean> {
         const room = await Room.findByPk(roomEmail);
         if (!room) {
-            return;
+            return false;
+        }
+
+        if (eventId) {
+            const event = await EventService.getEventById(eventId);
+            if (!event || event.deletedAt) {
+                console.warn(`[RoomService] Intento de asignar evento ${eventId} ${event ? 'eliminado' : 'inexistente'} como currentEvent de ${roomEmail}`);
+                return false;
+            }
         }
 
         const currentEvent = room.get('current_event') as string | null;
 
-        // Si hay un evento, verificar si ya terminó
         if (currentEvent) {
             if (await this.isCurrentEventEnded(currentEvent)) {
                 await room.update({
                     current_event: null,
                     is_busy: false
                 });
-                return;
+                return true;
             }
         }
 
-        // Actualiza el current_event
         if (currentEvent !== eventId) {
             await room.update({
                 current_event: eventId
             });
+            return true;
         }
+
+        return false;
     }
 
     private async isCurrentEventEnded(currentEventId: string | null): Promise<boolean> {
         if (!currentEventId) return false;
 
         const currentEvent = await EventService.getEventById(currentEventId);
-        if (!currentEvent) return false;
+        if (!currentEvent || currentEvent.deletedAt) return true;
 
         return new Date(currentEvent.endTime).getTime() <= Date.now();
     }
@@ -186,13 +196,16 @@ class RoomService {
             return respuesta;
         }
 
-        // Verificar que el evento pertenece a esta sala
+        if (event.deletedAt) {
+            respuesta.message = 'Este evento ha sido eliminado';
+            return respuesta;
+        }
+
         if (event.roomEmail !== roomEmail) {
             respuesta.message = 'El evento no pertenece a esta sala';
             return respuesta;
         }
 
-        // Verificar si ya está checked in
         const checkInStatus = event.get('checkInStatus') as CheckInStatus;
 
         if (checkInStatus === CheckInStatus.CHECKED_IN) {
@@ -200,12 +213,6 @@ class RoomService {
             return respuesta;
         }
 
-        if (checkInStatus === CheckInStatus.EXPIRED) {
-            respuesta.message = "El tiempo para hacer check-in ha expirado.";
-            return respuesta;
-        }
-
-        // Verificar que el usuario sea asistente
         const attendeesDTO = event.get('attendees') as Attendee[] | null;
 
         if (attendeesDTO && !attendeesDTO.some(attendee => attendee.email === userEmail)) {
@@ -214,16 +221,14 @@ class RoomService {
         }
 
         const startTime = event.get('startTime') as Date;
-
-        // Verificar ventana de check-in (30 min antes - 15 min después del inicio)
-        const canCheckIn = EventService.canCheckIn(startTime);
+        const endTime = event.get('endTime') as Date;
+        const canCheckIn = EventService.canCheckIn(startTime, endTime);
 
         if (!canCheckIn.canCheckIn) {
             respuesta.message = canCheckIn.reason || "No es posible realizar check-in en este momento.";
             return respuesta;
         }
 
-        // Verificar que el evento sea primario (no superpuesto)
         const overlapInfo = await EventService.checkEventOverlap(
             eventId,
             roomEmail,
@@ -232,18 +237,47 @@ class RoomService {
         );
 
         if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
-            respuesta.message = `Este evento está superpuesto. Solo puedes hacer check-in en el evento primario.`;
-            return respuesta;
+            const eventWasModified = event.createdAt.getTime() !== event.updatedAt.getTime();
+
+            if (eventWasModified) {
+                respuesta.message = `Este evento fue modificado y está superpuesto. Solo puede hacerse check-in en el evento primario.`;
+                return respuesta;
+            }
+            
+            const primaryEvent = await EventService.getEventById(overlapInfo.primaryEventId!);
+            if (primaryEvent) {
+                const primaryWasModified = primaryEvent.createdAt.getTime() !== primaryEvent.updatedAt.getTime();
+                
+                if (!primaryWasModified) {
+                    respuesta.message = `Este evento está superpuesto. Solo puede hacerse check-in en el evento primario.`;
+                    return respuesta;
+                }
+
+                const now = Date.now();
+                const eventStart = new Date(event.startTime).getTime();
+                
+                if (now < eventStart) {
+                    respuesta.message = `No puedes hacer check-in antes del horario de inicio del evento (${new Date(eventStart).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}).`;
+                    return respuesta;
+                }
+                
+                console.log(`[RoomService] Evento ${eventId} (NO modificado) permitiendo check-in en overlap causado por modificación del evento ${overlapInfo.primaryEventId}`);
+            }
         }
 
-        // Realizar el check-in
-        await event.update({ checkInStatus: CheckInStatus.CHECKED_IN });
+        await EventService.updateEventCheckInStatus(eventId, CheckInStatus.CHECKED_IN);
+    
+        const now = Date.now();
+        const eventStart = new Date(startTime).getTime();
+        const eventEnd = new Date(endTime).getTime();
+        const isEventInProgress = now >= eventStart && now < eventEnd;
         
-        // Asignar como current_event y marcar sala como ocupada
-        await currentRoom.update({ 
+        await currentRoom.update({
             current_event: eventId,
-            is_busy: true 
+            is_busy: isEventInProgress
         });
+
+        await event.reload();
 
         respuesta.success = true;
         respuesta.event = event;

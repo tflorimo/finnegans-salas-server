@@ -5,7 +5,6 @@ import RoomService from '../services/roomService';
 import EventService from '../services/eventService';
 import { mapResponseToEventDTO } from '../utils/mappers/eventMapper';
 import { updateEvent } from '../utils/mappers/eventMapper';
-
 export class SyncCalendarEventsJob implements JobRemoto {
 
     ADMIN_ACCOUNT_IMPERSONATE: string;
@@ -19,6 +18,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
     }
 
     async execute(): Promise<void> {
+        
         const roomEmails = await RoomService.getAllRoomEmails();
         console.log('[SyncCalendarEvents] Sincronizando eventos de calendario...');
 
@@ -46,7 +46,6 @@ export class SyncCalendarEventsJob implements JobRemoto {
                 const eventIdsFromCalendar = events.map(event => event.id!);
                 const localEvents = await EventService.getEventsByRoomId(email);
 
-                // Marca como eliminados los eventos que ya no están en Calendar
                 for (const localEvent of localEvents) {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
                         console.log(`[SyncCalendarEvents] Evento ${localEvent.id} eliminado del calendar, marcando deletedAt...`);
@@ -58,10 +57,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
                     const eventSearched = await EventService.getEventById(event.id!);
 
                     if (eventSearched) {
-                        // Si el evento existe, actualizarlo con el checkInStatus correcto
                         const updatedEvent = updateEvent(event, eventSearched);
-
-                        // Determinar el checkInStatus correcto según el tiempo
                         const correctStatus = EventService.determineCheckInStatus(
                             updatedEvent.startTime,
                             updatedEvent.endTime,
@@ -69,9 +65,17 @@ export class SyncCalendarEventsJob implements JobRemoto {
                         );
 
                         updatedEvent.checkInStatus = correctStatus;
-                        await EventService.upsertEvent(updatedEvent);
+                        
+                        const hasChanges = 
+                            new Date(eventSearched.startTime).getTime() !== new Date(updatedEvent.startTime).getTime() ||
+                            new Date(eventSearched.endTime).getTime() !== new Date(updatedEvent.endTime).getTime() ||
+                            eventSearched.title !== updatedEvent.title ||
+                            eventSearched.checkInStatus !== updatedEvent.checkInStatus;
+                        
+                        if (hasChanges) {
+                            await EventService.upsertEvent(updatedEvent);
+                        }
 
-                        // Si estaba eliminado (deletedAt), restaurarlo (por las dudas)
                         if (eventSearched.deletedAt) {
                             await EventService.restoreEvent(event.id!);
                             console.log(`[SyncCalendarEvents] Evento ${event.id} restaurado`);
@@ -81,60 +85,6 @@ export class SyncCalendarEventsJob implements JobRemoto {
                         const eventDTO = mapResponseToEventDTO(event, email);
                         await EventService.upsertEvent(eventDTO);
                     }
-                }
-
-                /* Eventos superpuestos: En principio, si hay dos eventos a la vez en la misma room, predomina
-                   El createdAt más antiguo */
-                const now = new Date();
-                let primaryEventIdForRoom: string | null = null;
-
-                for (const event of events) {
-                    if (!event.id) continue;
-
-                    const startTime = new Date(event.start?.dateTime!);
-                    const endTime = new Date(event.end?.dateTime!);
-
-                    const overlapInfo = await EventService.checkEventOverlap(
-                        event.id,
-                        email,
-                        startTime,
-                        endTime
-                    );
-
-                    const eventToUpdate = await EventService.getEventById(event.id);
-                    if (!eventToUpdate) continue;
-
-                    /* Inversión de superposición: Si el evento primario tiene checkInStatus EXPIRED, 
-                       el evento superpuesto pasa a ser primario. */
-                    if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
-
-                        await EventService.markAsOverlapping(event.id);
-                        console.log(`[SyncCalendarEvents] Evento ${event.id} marcado como superpuesto (EXPIRED). Primario: ${overlapInfo.primaryEventId}`);
-
-                    } else if (overlapInfo.isOverlapping && overlapInfo.isPrimary) {
-
-                        const wasCleaned = await EventService.cleanOverlappingMarker(event.id);
-
-                        if (wasCleaned) {
-                            console.log(`[SyncCalendarEvents] Evento ${event.id} promovido a primario, título limpiado.`);
-                        }
-
-                        // Si el evento primario está activo, guardarlo para asignarlo después
-                        if (now >= startTime && now <= endTime) {
-                            primaryEventIdForRoom = event.id;
-                        }
-                    } else if (!overlapInfo.isOverlapping) {
-                        // Evento sin superposición, si está activo, guardarlo
-                        if (now >= startTime && now <= endTime) {
-                            primaryEventIdForRoom = event.id;
-                        }
-                    }
-                }
-
-                // Asignar el evento primario activo como currentEvent de la sala
-                if (primaryEventIdForRoom) {
-                    await RoomService.updateRoomCurrentEvent(email, primaryEventIdForRoom);
-                    console.log(`[SyncCalendarEvents] Evento ${primaryEventIdForRoom} asignado como currentEvent de ${email}`);
                 }
 
             } catch (error: any | string) {
