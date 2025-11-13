@@ -29,7 +29,7 @@ export function updateEvent(eventResponse: any, existingEvent: Event): EventAttr
     return {
         ...mapCommonEventFields(eventResponse),
         roomEmail: existingEvent.roomEmail,
-        checkInStatus: existingEvent.checkInStatus, 
+        checkInStatus: existingEvent.checkInStatus,
     } as EventAttributes;
 }
 
@@ -38,10 +38,8 @@ export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): Ev
     const startTime = new Date(eventResponse.start.dateTime);
     const now = Date.now();
     const fifteenMinutesAfterStart = startTime.getTime() + (15 * 60 * 1000);
-    
-    // Determinar el estado inicial correcto según el tiempo
-    const initialStatus = now > fifteenMinutesAfterStart 
-        ? CheckInStatus.EXPIRED 
+    const initialStatus = now > fifteenMinutesAfterStart
+        ? CheckInStatus.EXPIRED
         : CheckInStatus.PENDING;
 
     return {
@@ -52,15 +50,26 @@ export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): Ev
 }
 
 // Mapea un Event del modelo a EventDTOResponse para enviar al frontend
-export function mapEventToResponseDTO(event: Event, creatorName: string): EventDTOResponse {
+export function mapEventToResponseDTO(event: Event, creatorName: string, isPrimary: boolean): EventDTOResponse {
     const room = (event as any).room as { name?: string } | undefined;
+
+    let displayTitle = event.title;
+
+    const now = new Date();
+    const start = new Date(event.startTime);
+    const end = new Date(event.endTime);
+    const isActive = start <= now && end > now;
+    
+    if (isActive && !isPrimary) {
+        displayTitle = `⚠️ Superpuesto - ${event.title}`;
+    }
 
     return {
         id: event.id,
         creatorMail: event.creatorMail,
         roomEmail: event.roomEmail,
         startTime: event.startTime,
-        title: event.title,
+        title: displayTitle,
         endTime: event.endTime,
         checkInStatus: event.checkInStatus,
         attendees: event.attendees as AttendeeDTO[],
