@@ -55,7 +55,7 @@ class EventService {
             return;
         }
         const existingEvent = await Event.findByPk(eventDTO.id);
-        
+
         if (existingEvent) {
             await Event.update(eventValues, {
                 where: { id: eventDTO.id }
@@ -84,7 +84,6 @@ class EventService {
         if (now >= end) {
             return CheckInStatus.EXPIRED;
         }
-
 
         if (now <= fifteenMinutesAfterStart) {
             return CheckInStatus.PENDING;
@@ -140,12 +139,12 @@ class EventService {
     }
 
     async updateEventCheckInStatus(eventId: string, status: CheckInStatus): Promise<void> {
-       
+
         await Event.update(
             { checkInStatus: status },
-            { 
+            {
                 where: { id: eventId },
-                silent: true  
+                silent: true
             }
         );
     }
@@ -160,16 +159,16 @@ class EventService {
         }
 
         const eventWasModified = event.createdAt.getTime() !== event.updatedAt.getTime();
-        
+
         if (event.checkInStatus === CheckInStatus.CHECKED_IN && !eventWasModified) {
             return false;
         }
 
         await Event.update(
             { checkInStatus: CheckInStatus.EXPIRED },
-            { 
+            {
                 where: { id: eventId },
-                silent: true  
+                silent: true
             }
         );
         return true;
@@ -217,19 +216,19 @@ class EventService {
             const eventStart = new Date(event.startTime).getTime();
             const eventEnd = new Date(event.endTime).getTime();
             const fifteenMinutesAfterStart = eventStart + (15 * 60 * 1000);
-            
+
             if (now < eventStart) {
                 return false;
             }
-            
+
             if (now >= eventEnd) {
                 return false;
             }
-            
+
             if (now > fifteenMinutesAfterStart && event.checkInStatus !== CheckInStatus.CHECKED_IN) {
                 return false;
             }
-            
+
             return true;
         });
 
@@ -242,19 +241,19 @@ class EventService {
             const bModified = b.createdAt.getTime() !== b.updatedAt.getTime();
             const aStartTime = new Date(a.startTime).getTime();
             const bStartTime = new Date(b.startTime).getTime();
-            
+
             if (aModified && !bModified) {
                 if (now >= bStartTime) {
-                    return 1; 
+                    return 1;
                 }
-                return -1; 
+                return -1;
             }
-            
+
             if (!aModified && bModified) {
                 if (now >= aStartTime) {
-                    return -1; 
+                    return -1;
                 }
-                return 1; 
+                return 1;
             }
 
             const aEffectiveTime = aModified ? a.updatedAt.getTime() : a.createdAt.getTime();

@@ -4,23 +4,23 @@ import { Room } from "../../models";
 
 function extractFeatures(dto: RoomResponseDTO | any): string[] | null {
     if (!dto.featureInstances) return new Array<string>();
-    
+
     const features = dto.featureInstances
         .map((fi: any) => fi?.feature?.name)
         .filter((n: any): n is string => typeof n === 'string' && n.trim().length > 0);
-    
+
     return features.length > 0 ? features : null;
 }
 
 function buildRoomName(resourceName: string, floorName: string): string {
     let roomName = resourceName || 'Sala sin nombre';
-    
+
     const floorInName = roomName.match(/\d+/)?.[0];
-    
+
     if (floorInName !== floorName) {
         roomName = `${roomName} - Piso ${floorName}`;
     }
-    
+
     return roomName;
 }
 
@@ -29,10 +29,10 @@ function mapCommonRoomFields(resource: any, features: string[] | null): Partial<
         email: resource.resourceEmail,
         name: buildRoomName(resource.resourceName, resource.floorName),
         floor: resource.floorName,
-        type: resource.resourceType || 'DEFAULT', 
+        type: resource.resourceType || 'DEFAULT',
         capacity: resource.capacity || 0,
         description: resource.userVisibleDescription || null,
-        resources: features, 
+        resources: features,
     };
 }
 
@@ -73,7 +73,8 @@ export function mapResponseToRoomResponseDTO(roomResponse: any): RoomResponseDTO
 }
 
 // Mapea un Room del modelo a RoomRequestDTO para enviar al frontend
-export function mapRoomToRequestDTO(room: Room, currentEvent: EventDTOResponse | null, events: EventDTOResponse[]): RoomRequestDTO {
+export function mapRoomToRequestDTO(room: Room, currentEvent: EventDTOResponse | null,
+    events: EventDTOResponse[]): RoomRequestDTO {
     return {
         email: room.email,
         name: room.name,

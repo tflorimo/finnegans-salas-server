@@ -18,7 +18,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
     }
 
     async execute(): Promise<void> {
-        
+
         const roomEmails = await RoomService.getAllRoomEmails();
         console.log('[SyncCalendarEvents] Sincronizando eventos de calendario...');
 
@@ -48,7 +48,8 @@ export class SyncCalendarEventsJob implements JobRemoto {
 
                 for (const localEvent of localEvents) {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
-                        console.log(`[SyncCalendarEvents] Evento ${localEvent.id} eliminado del calendar, marcando deletedAt...`);
+                        console.log(`[SyncCalendarEvents] Evento ${localEvent.id} eliminado del calendar, 
+                                    marcando deletedAt...`);
                         await EventService.softDeleteEvent(localEvent.id);
                     }
                 }
@@ -65,13 +66,13 @@ export class SyncCalendarEventsJob implements JobRemoto {
                         );
 
                         updatedEvent.checkInStatus = correctStatus;
-                        
-                        const hasChanges = 
+
+                        const hasChanges =
                             new Date(eventSearched.startTime).getTime() !== new Date(updatedEvent.startTime).getTime() ||
                             new Date(eventSearched.endTime).getTime() !== new Date(updatedEvent.endTime).getTime() ||
                             eventSearched.title !== updatedEvent.title ||
                             eventSearched.checkInStatus !== updatedEvent.checkInStatus;
-                        
+
                         if (hasChanges) {
                             await EventService.upsertEvent(updatedEvent);
                         }

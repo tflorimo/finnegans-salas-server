@@ -32,7 +32,7 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                 customer: process.env.CUSTOMER_ID,
                 maxResults: 100,
             });
-            
+
             const roomResources = response.data.items || [];
             if (!roomResources.length) {
                 console.log('No se encontraron room resources.');
@@ -41,17 +41,18 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
 
             const roomEmailsFromApi = roomResources.map(resource => resource.resourceEmail!);
             const localRooms = await RoomService.getAllRooms();
-            
+
             // Marca como eliminadas las rooms que ya no están en la API (soft delete)
             for (const localRoom of localRooms) {
                 if (!roomEmailsFromApi.includes(localRoom.email)) {
-                    console.log(`[SyncApiRoomResources] Room ${localRoom.email} eliminada de la API, marcando deletedAt...`);
+                    console.log(`[SyncApiRoomResources] Room ${localRoom.email} eliminada de la API, 
+                                 marcando deletedAt...`);
                     await RoomService.softDeleteRoom(localRoom.email);
                 }
             }
 
             for (const resource of roomResources) {
-                
+
                 const roomModel = await RoomService.fetchRoom(resource.resourceEmail!);
 
                 if (roomModel) {

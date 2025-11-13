@@ -59,7 +59,7 @@ export function mapEventToResponseDTO(event: Event, creatorName: string, isPrima
     const start = new Date(event.startTime);
     const end = new Date(event.endTime);
     const isActive = start <= now && end > now;
-    
+
     if (isActive && !isPrimary) {
         displayTitle = `⚠️ Superpuesto - ${event.title}`;
     }

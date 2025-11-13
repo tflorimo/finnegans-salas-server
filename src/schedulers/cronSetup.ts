@@ -39,7 +39,8 @@ export const setupJobs = () => {
 
 /**
  * Interfaz para todos los jobs remotos (que interactúan con Google APIs)
- * Obliga a cumplir el contrato de tener el método execute y la propiedad ADMIN_ACCOUNT_IMPERSONATE (la cuenta utilizada por el back para hablar con Google APIs)
+ * Obliga a cumplir el contrato de tener el método execute y la propiedad ADMIN_ACCOUNT_IMPERSONATE 
+ * (la cuenta utilizada por el back para hablar con Google APIs)
  */
 export interface JobRemoto {
     execute(): Promise<void>;

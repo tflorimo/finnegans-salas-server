@@ -21,13 +21,13 @@ class RoomStatusService {
     private shouldLog(key: string): boolean {
         const lastLogged = this.logCache.get(key);
         const now = Date.now();
-        
+
         if (!lastLogged || (now - lastLogged) > this.LOG_TTL) {
             this.logCache.set(key, now);
             this.cleanupCacheIfNeeded(now);
             return true;
         }
-        
+
         return false;
     }
 
@@ -73,13 +73,13 @@ class RoomStatusService {
         let currentEventChanged = false;
         if (primaryEventId && primaryEventId !== currentEventId) {
             await RoomService.updateRoomCurrentEvent(room.email, primaryEventId);
-            
+
             if (this.shouldLog(`currentEvent:${room.email}:${primaryEventId}`)) {
                 console.log(`[RoomStatusService] ${room.name}: currentEvent actualizado a ${primaryEventId}`);
             }
             changes++;
             currentEventChanged = true;
-            
+
             await room.reload();
         }
 
@@ -91,14 +91,15 @@ class RoomStatusService {
                 const eventEnd = new Date(event.endTime).getTime();
                 const nowTime = now.getTime();
                 const isEventInProgress = nowTime >= eventStart && nowTime < eventEnd;
-                
+
                 const shouldBeBusy = isCheckedIn && isEventInProgress;
                 const currentBusyStatus = room.get('is_busy') as boolean;
-                
+
                 if (currentEventChanged || currentBusyStatus !== shouldBeBusy) {
                     if (currentBusyStatus !== shouldBeBusy) {
                         await RoomService.updateRoomBusyStatus(room.email, shouldBeBusy);
-                        console.log(`[RoomStatusService] ${room.name}: is_busy=${shouldBeBusy} (checkInStatus=${event.checkInStatus}, inProgress=${isEventInProgress})`);
+                        console.log(`[RoomStatusService] ${room.name}: is_busy=${shouldBeBusy} 
+                                   (checkInStatus=${event.checkInStatus}, inProgress=${isEventInProgress})`);
                         changes++;
                     }
                 }
@@ -146,19 +147,19 @@ class RoomStatusService {
             const eventStart = new Date(event.startTime).getTime();
             const eventEnd = new Date(event.endTime).getTime();
             const fifteenMinutesAfterStart = eventStart + (15 * 60 * 1000);
-            
+
             if (now.getTime() < eventStart) {
                 return false;
             }
-            
+
             if (now.getTime() >= eventEnd) {
                 return false;
             }
-            
+
             if (now.getTime() > fifteenMinutesAfterStart && event.checkInStatus !== CheckInStatus.CHECKED_IN) {
                 return false;
             }
-            
+
             return true;
         });
 
@@ -169,19 +170,19 @@ class RoomStatusService {
             const bModified = b.createdAt.getTime() !== b.updatedAt.getTime();
             const aStartTime = new Date(a.startTime).getTime();
             const bStartTime = new Date(b.startTime).getTime();
-            
+
             if (aModified && !bModified) {
                 if (now.getTime() >= bStartTime) {
-                    return 1; 
+                    return 1;
                 }
-                return -1; 
+                return -1;
             }
-            
+
             if (!aModified && bModified) {
                 if (now.getTime() >= aStartTime) {
-                    return -1; 
+                    return -1;
                 }
-                return 1; 
+                return 1;
             }
 
             const aEffectiveTime = aModified ? a.updatedAt.getTime() : a.createdAt.getTime();
@@ -206,30 +207,33 @@ class RoomStatusService {
                 primaryEvent.endTime,
                 CheckInStatus.EXPIRED
             );
-            
+
             if (newStatus !== CheckInStatus.EXPIRED) {
                 await EventService.updateEventCheckInStatus(primaryEvent.id, newStatus);
-                console.log(`[RoomStatusService] Evento ${primaryEvent.id} promovido de EXPIRED a ${newStatus} (ahora es primario)`);
+                console.log(`[RoomStatusService] Evento ${primaryEvent.id} promovido de EXPIRED a 
+                           ${newStatus} (ahora es primario)`);
             }
         }
 
         const primaryWasModified = primaryEvent.createdAt.getTime() !== primaryEvent.updatedAt.getTime();
-        
+
         for (const event of activeEvents) {
             if (event.id !== primaryEvent.id) {
                 const eventWasModified = event.createdAt.getTime() !== event.updatedAt.getTime();
                 const shouldMarkAsExpired = !primaryWasModified || eventWasModified;
-                
+
                 if (shouldMarkAsExpired) {
                     const wasMarked = await EventService.markAsOverlapping(event.id);
-                    
+
                     if (wasMarked && this.shouldLog(`overlap:${event.id}:${primaryEvent.id}`)) {
                         const reason = !primaryWasModified ? 'overlap original' : 'ambos modificados';
-                        console.log(`[RoomStatusService] Evento ${event.id} marcado como superpuesto (${reason}). Primario: ${primaryEvent.id}`);
+                        console.log(`[RoomStatusService] Evento ${event.id} marcado como superpuesto 
+                                   (${reason}). Primario: ${primaryEvent.id}`);
                     }
                 } else {
                     if (this.shouldLog(`unmodified:${event.id}:${primaryEvent.id}`)) {
-                        console.log(`[RoomStatusService] Evento ${event.id} (NO modificado) mantiene prioridad sobre primario modificado ${primaryEvent.id}`);
+                        console.log(`[RoomStatusService] Evento ${event.id} (NO modificado) 
+                                    mantiene prioridad sobre primario modificado ${primaryEvent.id}`);
                     }
                 }
             }
