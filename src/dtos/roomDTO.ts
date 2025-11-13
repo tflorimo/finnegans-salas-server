@@ -1,5 +1,6 @@
 import { EventDTOResponse } from "./eventDTO";
 
+// Respuesta de la API de Google Admin SDK
 export interface RoomResponseDTO {
     resourceEmail: string;
     resourceName: string;
