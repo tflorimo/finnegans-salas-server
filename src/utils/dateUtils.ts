@@ -1,4 +1,4 @@
-export function getWeekRange(date: Date = new Date()): { start: Date; end: Date } {
+export function getRemainingWeekRange(date: Date = new Date()): { start: Date; end: Date } {
     const now = new Date(date);
     const dayOfWeek = now.getDay();
     
@@ -16,19 +16,13 @@ export function getWeekRange(date: Date = new Date()): { start: Date; end: Date 
 }
 
 export function isDateInWeek(date: Date, weekStart?: Date): boolean {
-    const { start, end } = getWeekRange(weekStart);
+    const { start, end } = getRemainingWeekRange(weekStart);
     const eventDate = new Date(date);
     return eventDate >= start && eventDate <= end;
 }
 
 export function filterEventsByWeek(eventos: any[]): any[] {
     return eventos.filter(evento => isDateInWeek(evento.startTime));
-}
-
-export function getTodayDate(): Date {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today;
 }
 
 export function getDateWithoutTime(date: Date): Date {
