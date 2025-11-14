@@ -30,7 +30,7 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
         try {
             const response = await admin.resources.calendars.list({
                 customer: process.env.CUSTOMER_ID,
-                maxResults: 100,
+                maxResults: 30,
             });
 
             const roomResources = response.data.items || [];
@@ -45,8 +45,9 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
             // Marca como eliminadas las rooms que ya no están en la API (soft delete)
             for (const localRoom of localRooms) {
                 if (!roomEmailsFromApi.includes(localRoom.email)) {
-                    console.log(`[SyncApiRoomResources] Room ${localRoom.email} eliminada de la API, 
-                                 marcando deletedAt...`);
+                    console.log(
+                        `[SyncApiRoomResources] Room ${localRoom.email} eliminada de la API, marcando deletedAt...`
+                    );
                     await RoomService.softDeleteRoom(localRoom.email);
                 }
             }
@@ -58,11 +59,6 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                 if (roomModel) {
                     // Lógica para los recursos ya existentes en la DB
                     const updatedRoom = updateRoom(resource, roomModel);
-
-                    if (updatedRoom.current_event) {
-                        await RoomService.updateRoomCurrentEvent(updatedRoom.email, updatedRoom.current_event);
-                    }
-
                     await RoomService.upsertRoom(updatedRoom);
 
                     if (roomModel.deletedAt) {
