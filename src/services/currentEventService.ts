@@ -4,31 +4,21 @@ import { Event } from '../models';
 import overlapService from './overlapService';
 import checkInService, { FIFTEEN_MINUTES_MS } from './checkInService';
 
-// Servicio para determinar evento activo, filtrar y determinar estado del evento en curso de una sala
+// Servicio para determinar evento activo, filtrar y definir estado del evento en curso de una sala
 class CurrentEventService {
 
     async findActiveEvent(roomEmail: string, now: Date): Promise<string | null> {
-
         const allEvents = await eventService.getActiveEventsByRoomId(roomEmail);
 
         if (allEvents.length === 0) return null;
 
-        const eventsInProgress = allEvents.filter(event => {
-            const start = new Date(event.startTime).getTime();
-            const end = new Date(event.endTime).getTime();
-            const nowTime = now.getTime();
-            return nowTime >= start && nowTime < end;
-        });
-
-        if (eventsInProgress.length === 0) return null;
-
-        if (eventsInProgress.length === 1) {
-            return eventsInProgress[0].id;
-        }
-
-        const activeEvents = this.filterActiveEvents(eventsInProgress, now);
+        const activeEvents = this.filterActiveEvents(allEvents, now);
 
         if (activeEvents.length === 0) return null;
+
+        if (activeEvents.length === 1) {
+            return activeEvents[0].id;
+        }
 
         const sortedEvents = overlapService.evaluatePriority(activeEvents, now);
         const primaryEvent = sortedEvents[0];
@@ -61,11 +51,7 @@ class CurrentEventService {
             const fifteenMinutesAfterStart = eventStart + FIFTEEN_MINUTES_MS;
             const nowTime = now.getTime();
 
-            if (nowTime < eventStart) {
-                return false;
-            }
-
-            if (nowTime >= eventEnd) {
+            if (nowTime < eventStart || nowTime >= eventEnd) {
                 return false;
             }
 
