@@ -17,7 +17,7 @@ class EventService {
 
     async getEventById(id: string | null | undefined): Promise<Event | null> {
         if (!id) return null;
-        return Event.findByPk(id, { paranoid: false }); // paranoid: false permite buscar también registros eliminados
+        return Event.findByPk(id, { paranoid: false });
     }
 
     async getEventsByIds(ids: string[]): Promise<Event[]> {
@@ -50,19 +50,15 @@ class EventService {
         }
 
         const hasRoomResource = eventValues.attendees.some(attendee => attendee.resource);
+
         if (!hasRoomResource) {
-            console.log(`El evento con id "${eventDTO.id}" no tiene asistentes que sean salas, no se guardará.`);
+            console.log(
+                `El evento con id "${eventDTO.id}" no tiene asistentes que sean salas, no se guardará.`
+            );
             return;
         }
-        const existingEvent = await Event.findByPk(eventDTO.id);
 
-        if (existingEvent) {
-            await Event.update(eventValues, {
-                where: { id: eventDTO.id }
-            });
-        } else {
-            await Event.create(eventValues);
-        }
+        await Event.upsert(eventValues);
     }
 
     /**
@@ -85,7 +81,7 @@ class EventService {
             return CheckInStatus.EXPIRED;
         }
 
-        if (now <= fifteenMinutesAfterStart) {
+        if (now < fifteenMinutesAfterStart) {
             return CheckInStatus.PENDING;
         }
 
@@ -113,26 +109,30 @@ class EventService {
 
     /**
      * Determina si un evento puede recibir check-in:
-     * - Hasta 30 minutos antes del startTime
+     * - Hasta 10 minutos antes del startTime
      * - Hasta 15 minutos después del startTime
      */
     canCheckIn(startTime: Date, endTime: Date): { canCheckIn: boolean; reason?: string } {
         const now = Date.now();
         const start = new Date(startTime).getTime();
         const end = new Date(endTime).getTime();
-        const thirtyMinutesBefore = start - (30 * 60 * 1000); // @TODO: modificar a gusto
+        const tenMinutesBefore = start - (10 * 60 * 1000); 
         const fifteenMinutesAfter = start + (15 * 60 * 1000);
 
         if (now >= end) {
             return { canCheckIn: false, reason: "El evento ya ha terminado." };
         }
 
-        if (now < thirtyMinutesBefore) {
-            return { canCheckIn: false, reason: "Aún no puedes hacer check-in. Intenta 30 minutos antes del evento." };
+        if (now < tenMinutesBefore) {
+            return {
+                canCheckIn: false, reason: "Aún no puedes hacer check-in. Intenta 10 minutos antes del evento."
+            };
         }
 
         if (now > fifteenMinutesAfter) {
-            return { canCheckIn: false, reason: "El tiempo para hacer check-in ha expirado (15 min después del inicio)." };
+            return {
+                canCheckIn: false, reason: "El tiempo para hacer check-in ha expirado (15 min después del inicio)."
+            };
         }
 
         return { canCheckIn: true };
@@ -149,7 +149,67 @@ class EventService {
         );
     }
 
-    // Marca un evento como superpuesto, actualizando su checkInStatus
+    filterActiveEvents(events: Event[], now: Date): Event[] {
+        return events.filter(event => {
+            const eventStart = new Date(event.startTime).getTime();
+            const eventEnd = new Date(event.endTime).getTime();
+            const fifteenMinutesAfterStart = eventStart + (15 * 60 * 1000);
+            const nowTime = now.getTime();
+
+            if (nowTime < eventStart) {
+                return false;
+            }
+
+            if (nowTime >= eventEnd) {
+                return false;
+            }
+
+            if (nowTime > fifteenMinutesAfterStart && event.checkInStatus !== CheckInStatus.CHECKED_IN) {
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    // Marca un evento como superpuesto, actualizando su checkInStatus 
+    sortEventsByPriority(events: Event[], now: Date): Event[] {
+        return [...events].sort((a, b) => {
+            const aModified = a.createdAt.getTime() !== a.updatedAt.getTime();
+            const bModified = b.createdAt.getTime() !== b.updatedAt.getTime();
+            const aStartTime = new Date(a.startTime).getTime();
+            const bStartTime = new Date(b.startTime).getTime();
+            const nowTime = now.getTime();
+
+            if (aModified && !bModified) {
+                if (nowTime >= bStartTime) {
+                    return 1;
+                }
+                return -1;
+            }
+
+            if (!aModified && bModified) {
+                if (nowTime >= aStartTime) {
+                    return -1;
+                }
+                return 1;
+            }
+
+            const aEffectiveTime = aModified ? a.updatedAt.getTime() : a.createdAt.getTime();
+            const bEffectiveTime = bModified ? b.updatedAt.getTime() : b.createdAt.getTime();
+
+            if (aEffectiveTime !== bEffectiveTime) {
+                return aEffectiveTime - bEffectiveTime;
+            }
+
+            if (aStartTime !== bStartTime) {
+                return aStartTime - bStartTime;
+            }
+
+            return a.id.localeCompare(b.id);
+        });
+    }
+
     async markAsOverlapping(eventId: string): Promise<boolean> {
         const event = await Event.findByPk(eventId);
         if (!event) return false;
@@ -211,66 +271,15 @@ class EventService {
 
         const allEvents = [...overlaps, currentEvent];
 
-        const now = Date.now();
-        const activeEvents = allEvents.filter(event => {
-            const eventStart = new Date(event.startTime).getTime();
-            const eventEnd = new Date(event.endTime).getTime();
-            const fifteenMinutesAfterStart = eventStart + (15 * 60 * 1000);
-
-            if (now < eventStart) {
-                return false;
-            }
-
-            if (now >= eventEnd) {
-                return false;
-            }
-
-            if (now > fifteenMinutesAfterStart && event.checkInStatus !== CheckInStatus.CHECKED_IN) {
-                return false;
-            }
-
-            return true;
-        });
+        const now = new Date();
+        const activeEvents = this.filterActiveEvents(allEvents, now);
 
         if (activeEvents.length === 0) {
             return { isOverlapping: true, isPrimary: false, primaryEventId: undefined };
         }
 
-        activeEvents.sort((a, b) => {
-            const aModified = a.createdAt.getTime() !== a.updatedAt.getTime();
-            const bModified = b.createdAt.getTime() !== b.updatedAt.getTime();
-            const aStartTime = new Date(a.startTime).getTime();
-            const bStartTime = new Date(b.startTime).getTime();
-
-            if (aModified && !bModified) {
-                if (now >= bStartTime) {
-                    return 1;
-                }
-                return -1;
-            }
-
-            if (!aModified && bModified) {
-                if (now >= aStartTime) {
-                    return -1;
-                }
-                return 1;
-            }
-
-            const aEffectiveTime = aModified ? a.updatedAt.getTime() : a.createdAt.getTime();
-            const bEffectiveTime = bModified ? b.updatedAt.getTime() : b.createdAt.getTime();
-
-            if (aEffectiveTime !== bEffectiveTime) {
-                return aEffectiveTime - bEffectiveTime;
-            }
-
-            if (aStartTime !== bStartTime) {
-                return aStartTime - bStartTime;
-            }
-
-            return a.id.localeCompare(b.id);
-        });
-
-        const primaryEvent = activeEvents[0];
+        const sortedEvents = this.sortEventsByPriority(activeEvents, now);
+        const primaryEvent = sortedEvents[0];
 
         const isPrimary = primaryEvent.id === eventId;
 
