@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 import { oauth2Client } from "../config/googleOAuth";
 import userService from "./userService";
-import JwtService from "./jwtService";
+import jwtService from "./jwtService";
 import { ensureOAuthAccess } from "../config/oAuthAccess";
 
 const oauth2 = google.oauth2("v2");
@@ -42,8 +42,8 @@ class AuthService {
       role,
     });
 
-    const accessToken = JwtService.generateAccessToken(user.id, user.email, user.role);
-    const refreshToken = JwtService.generateRefreshToken(user.id);
+    const accessToken = jwtService.generateAccessToken(user.id, user.email, user.role);
+    const refreshToken = jwtService.generateRefreshToken(user.id);
 
     const frontendURL = process.env.FRONTEND_URL!;
     const queryParams = new URLSearchParams({

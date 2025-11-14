@@ -1,12 +1,12 @@
 import { Room, Event } from "../models";
 import { RoomRequestDTO, RoomDTO } from "../dtos/roomDTO";
-import { EventDTOResponse, CheckInStatus } from "../dtos/eventDTO";
+import { EventDTOResponse } from "../dtos/eventDTO";
 import type { RoomAttributes } from "../models/room.types";
-import { Attendee } from "../models/event.types";
 import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
-import EventService from "./eventService";
-import UserService from "./userService";
+import eventService from "./eventService";
+import userService from "./userService";
+import currentEventService from "./currentEventService";
 class RoomService {
 
     async getAllRooms(): Promise<RoomRequestDTO[]> {
@@ -15,12 +15,12 @@ class RoomService {
             .map(room => room.get('current_event') as string | null)
             .filter((id): id is string => id !== null);
 
-        const eventPromises = currentEventIds.map(id => EventService.getEventById(id));
+        const eventPromises = currentEventIds.map(id => eventService.getEventById(id));
         const eventResults = await Promise.all(eventPromises);
         const events = eventResults.filter((event): event is Event => event !== null && !event.deletedAt);
 
         const creatorEmails = [...new Set(events.map(event => event.creatorMail))];
-        const creators = await UserService.getUsersByEmails(creatorEmails);
+        const creators = await userService.getUsersByEmails(creatorEmails);
         const creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
         const eventMap = new Map(events.map(event => [event.id, event]));
 
@@ -38,9 +38,9 @@ class RoomService {
         let creatorMap = new Map<string, string>();
 
         if (currentEventId) {
-            event = await EventService.getEventById(currentEventId);
+            event = await eventService.getEventById(currentEventId);
             if (event && !event.deletedAt) {
-                const creators = await UserService.getUsersByEmails([event.creatorMail]);
+                const creators = await userService.getUsersByEmails([event.creatorMail]);
                 creatorMap = new Map(creators.map(user => [user.email, user.name || "Usuario desconocido"]));
             } else {
                 event = null;
@@ -76,7 +76,7 @@ class RoomService {
             }
         }
 
-        const eventos = await EventService.getEventsByRoomId(room.email);
+        const eventos = await eventService.getEventsByRoomId(room.email);
         return mapRoomToRequestDTO(room, currentEventDTO, eventos);
     }
 
@@ -105,8 +105,26 @@ class RoomService {
         return Room.findAll();
     }
 
+    getCurrentEventId(room: Room): string | null {
+        return room.get('current_event') as string | null;
+    }
+
+    async reloadRoom(room: Room): Promise<void> {
+        await room.reload();
+    }
+
     async updateRoomBusyStatus(roomEmail: string, isBusy: boolean): Promise<void> {
         await Room.update({ is_busy: isBusy }, { where: { email: roomEmail } });
+    }
+
+    async updateRoomStatus(roomEmail: string, currentEventId: string, isBusy: boolean): Promise<void> {
+        const room = await Room.findOne({ where: { email: roomEmail } });
+        if (room) {
+            await room.update({
+                current_event: currentEventId,
+                is_busy: isBusy
+            });
+        }
     }
 
     async clearRoom(roomEmail: string): Promise<void> {
@@ -116,10 +134,6 @@ class RoomService {
         );
     }
 
-    /** actualiza el current event de un room
-    * @param roomEmail el mail d la sala a actualizar
-    * @param eventId el eventId el evento que le vamos a poner a la sala como current event
-    */
     async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<boolean> {
         const room = await Room.findByPk(roomEmail);
         if (!room) {
@@ -127,7 +141,7 @@ class RoomService {
         }
 
         if (eventId) {
-            const event = await EventService.getEventById(eventId);
+            const event = await eventService.getEventById(eventId);
             if (!event || event.deletedAt) {
                 console.warn(
                     `[RoomService] Intento de asignar evento ${eventId} ` +
@@ -140,7 +154,7 @@ class RoomService {
         const currentEvent = room.get('current_event') as string | null;
 
         if (currentEvent) {
-            if (await this.isCurrentEventEnded(currentEvent)) {
+            if (await currentEventService.isCurrentEventEnded(currentEvent)) {
                 await room.update({
                     current_event: null,
                     is_busy: false
@@ -159,19 +173,6 @@ class RoomService {
         return false;
     }
 
-    private async isCurrentEventEnded(currentEventId: string | null): Promise<boolean> {
-        if (!currentEventId) return false;
-
-        const currentEvent = await EventService.getEventById(currentEventId);
-        if (!currentEvent || currentEvent.deletedAt) return true;
-
-        return new Date(currentEvent.endTime).getTime() <= Date.now();
-    }
-
-    /**
-     * @returns La sala correspondiente al id proporcionado, o null si no existe
-     * Permite buscar rooms eliminadas (paranoid: false)
-     */
     async fetchRoom(id: string): Promise<Room | null> {
         const room = await Room.findByPk(id, { paranoid: false });
         if (!room) {
@@ -180,133 +181,10 @@ class RoomService {
         return room;
     }
 
-    async checkInEvent(roomEmail: string, eventId: string, userEmail: string):
-        Promise<{ success: boolean; event?: Event | null; message?: string }> {
-
-        const respuesta = {
-            success: false,
-            event: null as Event | null,
-            message: 'template de mensaje'
-        }
-
-        const currentRoom = await this.fetchRoom(roomEmail);
-
-        if (!currentRoom) {
-            respuesta.message = 'Sala no encontrada';
-            return respuesta;
-        }
-
-        const event = await EventService.getEventById(eventId);
-
-        if (!event) {
-            respuesta.message = 'Evento no encontrado';
-            return respuesta;
-        }
-
-        if (event.deletedAt) {
-            respuesta.message = 'Este evento ha sido eliminado';
-            return respuesta;
-        }
-
-        if (event.roomEmail !== roomEmail) {
-            respuesta.message = 'El evento no pertenece a esta sala';
-            return respuesta;
-        }
-
-        const checkInStatus = event.get('checkInStatus') as CheckInStatus;
-
-        if (checkInStatus === CheckInStatus.CHECKED_IN) {
-            respuesta.message = "Este evento ya tiene el check-in realizado.";
-            return respuesta;
-        }
-
-        const attendeesDTO = event.get('attendees') as Attendee[] | null;
-
-        if (attendeesDTO && !attendeesDTO.some(attendee => attendee.email === userEmail)) {
-            respuesta.message = "Para poder hacer check-in, debes estar como asistente del evento!";
-            return respuesta;
-        }
-
-        const startTime = event.get('startTime') as Date;
-        const endTime = event.get('endTime') as Date;
-        const canCheckIn = EventService.canCheckIn(startTime, endTime);
-
-        if (!canCheckIn.canCheckIn) {
-            respuesta.message = canCheckIn.reason || "No es posible realizar check-in en este momento.";
-            return respuesta;
-        }
-
-        const overlapInfo = await EventService.checkEventOverlap(
-            eventId,
-            roomEmail,
-            event.startTime,
-            event.endTime
-        );
-
-        if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
-            const eventWasModified = event.createdAt.getTime() !== event.updatedAt.getTime();
-
-            if (eventWasModified) {
-                respuesta.message =
-                    `Este evento fue modificado y está superpuesto. ` +
-                    `Solo puede hacerse check-in en el evento primario.`;
-                return respuesta;
-            }
-
-            const primaryEvent = await EventService.getEventById(overlapInfo.primaryEventId!);
-            if (primaryEvent) {
-                const primaryWasModified = primaryEvent.createdAt.getTime() !== primaryEvent.updatedAt.getTime();
-
-                if (!primaryWasModified) {
-                    respuesta.message =
-                        `Este evento está superpuesto. ` +
-                        `Solo puede hacerse check-in en el evento primario.`;
-                    return respuesta;
-                }
-
-                const now = Date.now();
-                const eventStart = new Date(event.startTime).getTime();
-
-                if (now < eventStart) {
-                    respuesta.message =
-                        `No puedes hacer check-in antes del horario de inicio ` +
-                        `del evento (${new Date(eventStart).toLocaleTimeString('es-ES',
-                            { hour: '2-digit', minute: '2-digit' })}).`;
-                    return respuesta;
-                }
-
-                console.log(
-                    `[RoomService] Evento ${eventId} ` +
-                    `(NO modificado) permitiendo check-in en overlap causado por ` +
-                    `modificación del evento ${overlapInfo.primaryEventId}`
-                );
-            }
-        }
-
-        await EventService.updateEventCheckInStatus(eventId, CheckInStatus.CHECKED_IN);
-
-        const now = Date.now();
-        const eventStart = new Date(startTime).getTime();
-        const eventEnd = new Date(endTime).getTime();
-        const isEventInProgress = now >= eventStart && now < eventEnd;
-
-        await currentRoom.update({
-            current_event: eventId,
-            is_busy: isEventInProgress
-        });
-
-        await event.reload();
-
-        respuesta.success = true;
-        respuesta.event = event;
-        respuesta.message = "Check-in realizado con éxito!";
-        return respuesta;
-    }
-
     async softDeleteRoom(roomEmail: string): Promise<void> {
         const room = await Room.findByPk(roomEmail);
         if (room) {
-            await room.destroy(); 
+            await room.destroy();
         }
     }
 

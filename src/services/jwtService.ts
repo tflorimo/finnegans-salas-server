@@ -7,7 +7,7 @@ type AccessTokenData = {
   role: UserRole;
 };
 export class JwtService {
-  private readonly ACCESS_TTL = "15s";
+  private readonly ACCESS_TTL = "15m";
   private readonly REFRESH_TTL = "30d";
 
   private getAccessSecret(): string {
