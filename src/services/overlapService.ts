@@ -3,6 +3,7 @@ import currentEventService from "./currentEventService";
 import eventService from "./eventService";
 import roomSyncService from "./roomSyncService";
 
+// Servicio dedicado a la gestión de superposiciones de eventos
 class OverlapService {
 
     wasEventModified(event: Event): boolean {
