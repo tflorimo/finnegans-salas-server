@@ -1,8 +1,8 @@
-import eventService from './eventService';
-import { CheckInStatus } from '../dtos/eventDTO';
-import { Event } from '../models';
-import overlapService from './overlapService';
-import checkInService, { FIFTEEN_MINUTES_MS } from './checkInService';
+import eventService from "./eventService";
+import { CheckInStatus } from "../dtos/eventDTO";
+import { Event } from "../models";
+import overlapService from "./overlapService";
+import checkInService, { FIFTEEN_MINUTES_MS } from "./checkInService";
 
 // Servicio para determinar evento activo, filtrar y definir estado del evento en curso de una sala
 class CurrentEventService {

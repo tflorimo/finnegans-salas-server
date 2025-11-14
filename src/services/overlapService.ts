@@ -1,7 +1,7 @@
 import { Event } from "../models";
 import currentEventService from "./currentEventService";
 import eventService from "./eventService";
-import roomSyncService from './roomSyncService';
+import roomSyncService from "./roomSyncService";
 
 class OverlapService {
 
@@ -94,9 +94,7 @@ class OverlapService {
         isPrimary: boolean;
         primaryEventId?: string;
     }> {
-        // Solo consulta eventos activos y futuros (no históricos)
         const overlappingEvents = await eventService.getActiveEventsByRoomId(roomEmail);
-
         const overlaps = overlappingEvents.filter(event =>
             event.id !== eventId &&
             this.eventsOverlap(startTime, endTime, event.startTime, event.endTime)
