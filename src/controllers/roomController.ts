@@ -1,3 +1,4 @@
+import checkInService from "../services/checkInService";
 import roomService from "../services/roomService";
 import { Request, Response } from "express"; 
 class RoomController {
@@ -49,7 +50,7 @@ class RoomController {
                 return;
             }
 
-            const resultado = await roomService.checkInEvent(roomId, eventId, userEmail);
+            const resultado = await checkInService.checkInEvent(roomId, eventId, userEmail);
             
             if (!resultado.success) {
                 res.status(400).json({

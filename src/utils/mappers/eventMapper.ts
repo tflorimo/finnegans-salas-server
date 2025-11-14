@@ -1,6 +1,7 @@
 import { AttendeeDTO, EventDTO, EventDTOResponse, CheckInStatus } from "../../dtos/eventDTO";
 import { Event } from "../../models";
 import { EventAttributes } from "../../models/event.types";
+import { FIFTEEN_MINUTES_MS } from "../../services/checkInService";
 import { getDateWithoutTime } from "../dateUtils";
 
 // Helper para mapear attendees desde la respuesta de Google Calendar
@@ -37,7 +38,7 @@ export function updateEvent(eventResponse: any, existingEvent: Event): EventAttr
 export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): EventDTO {
     const startTime = new Date(eventResponse.start.dateTime);
     const now = Date.now();
-    const fifteenMinutesAfterStart = startTime.getTime() + (15 * 60 * 1000);
+    const fifteenMinutesAfterStart = startTime.getTime() + FIFTEEN_MINUTES_MS;
     const initialStatus = now > fifteenMinutesAfterStart
         ? CheckInStatus.EXPIRED
         : CheckInStatus.PENDING;
