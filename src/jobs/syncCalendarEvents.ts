@@ -1,10 +1,12 @@
 import { google, Auth } from 'googleapis';
 import path from 'path';
 import { JobRemoto } from '../schedulers/cronSetup';
-import RoomService from '../services/roomService';
-import EventService from '../services/eventService';
+import roomService from '../services/roomService';
+import eventService from '../services/eventService';
 import { mapResponseToEventDTO } from '../utils/mappers/eventMapper';
 import { updateEvent } from '../utils/mappers/eventMapper';
+import checkInService from '../services/checkInService';
+import { getCalendarSyncRange } from '../utils/dateUtils';
 export class SyncCalendarEventsJob implements JobRemoto {
 
     ADMIN_ACCOUNT_IMPERSONATE: string;
@@ -19,7 +21,7 @@ export class SyncCalendarEventsJob implements JobRemoto {
 
     async execute(): Promise<void> {
 
-        const roomEmails = await RoomService.getAllRoomEmails();
+        const roomEmails = await roomService.getAllRoomEmails();
         console.log('[SyncCalendarEvents] Sincronizando eventos de calendario...');
 
         const auth = new google.auth.GoogleAuth({
@@ -32,19 +34,22 @@ export class SyncCalendarEventsJob implements JobRemoto {
 
         const authClient = await auth.getClient();
         const calendar = google.calendar({ version: 'v3', auth: authClient as Auth.JWT });
+        const { start, end } = getCalendarSyncRange();
 
         for (const email of roomEmails) {
             try {
                 const response = await calendar.events.list({
                     calendarId: email,
-                    maxResults: 100,
+                    timeMin: start.toISOString(),  
+                    timeMax: end.toISOString(),    
+                    maxResults: 250, 
                     singleEvents: true,
                     orderBy: 'startTime',
                 });
 
                 const events = response.data.items || [];
                 const eventIdsFromCalendar = events.map(event => event.id!);
-                const localEvents = await EventService.getEventsByRoomId(email);
+                const localEvents = await eventService.getEventsByRoomId(email);
 
                 for (const localEvent of localEvents) {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
@@ -52,16 +57,16 @@ export class SyncCalendarEventsJob implements JobRemoto {
                             `[SyncCalendarEvents] Evento ${localEvent.id} ` +
                             `eliminado del calendar, marcando deletedAt...`
                         );
-                        await EventService.softDeleteEvent(localEvent.id);
+                        await eventService.softDeleteEvent(localEvent.id);
                     }
                 }
 
                 for (const event of events) {
-                    const eventSearched = await EventService.getEventById(event.id!);
+                    const eventSearched = await eventService.getEventById(event.id!);
 
                     if (eventSearched) {
                         const updatedEvent = updateEvent(event, eventSearched);
-                        const correctStatus = EventService.determineCheckInStatus(
+                        const correctStatus = checkInService.determineCheckInStatus(
                             updatedEvent.startTime,
                             updatedEvent.endTime,
                             eventSearched.checkInStatus
@@ -92,17 +97,17 @@ export class SyncCalendarEventsJob implements JobRemoto {
                             attendeesChanged();
 
                         if (hasChanges) {
-                            await EventService.upsertEvent(updatedEvent);
+                            await eventService.upsertEvent(updatedEvent);
                         }
 
                         if (eventSearched.deletedAt) {
-                            await EventService.restoreEvent(event.id!);
+                            await eventService.restoreEvent(event.id!);
                             console.log(`[SyncCalendarEvents] Evento ${event.id} restaurado`);
                         }
 
                     } else {
                         const eventDTO = mapResponseToEventDTO(event, email);
-                        await EventService.upsertEvent(eventDTO);
+                        await eventService.upsertEvent(eventDTO);
                     }
                 }
 
