@@ -68,8 +68,10 @@ class RoomService {
                 currentEventDTO = mapEventToResponseDTO(event, creatorName, true);
 
             } else {
-                console.warn(`[enrichRoomWithEvents] Evento ${event ? 'eliminado' : 'fantasma'} 
-                              detectado en ${room.email}: ${currentEventId}`);
+                console.warn(
+                    `[enrichRoomWithEvents] Evento ${event ? 'eliminado' : 'fantasma'} detectado ` +
+                    `en ${room.email}: ${currentEventId}`
+                );
                 await room.update({ current_event: null, is_busy: false });
             }
         }
@@ -127,8 +129,10 @@ class RoomService {
         if (eventId) {
             const event = await EventService.getEventById(eventId);
             if (!event || event.deletedAt) {
-                console.warn(`[RoomService] Intento de asignar evento ${eventId} 
-                ${event ? 'eliminado' : 'inexistente'} como currentEvent de ${roomEmail}`);
+                console.warn(
+                    `[RoomService] Intento de asignar evento ${eventId} ` +
+                    `${event ? 'eliminado' : 'inexistente'} como currentEvent de ${roomEmail}`
+                );
                 return false;
             }
         }
@@ -243,8 +247,9 @@ class RoomService {
             const eventWasModified = event.createdAt.getTime() !== event.updatedAt.getTime();
 
             if (eventWasModified) {
-                respuesta.message = `Este evento fue modificado y está superpuesto. 
-                                     Solo puede hacerse check-in en el evento primario.`;
+                respuesta.message =
+                    `Este evento fue modificado y está superpuesto. ` +
+                    `Solo puede hacerse check-in en el evento primario.`;
                 return respuesta;
             }
 
@@ -253,8 +258,9 @@ class RoomService {
                 const primaryWasModified = primaryEvent.createdAt.getTime() !== primaryEvent.updatedAt.getTime();
 
                 if (!primaryWasModified) {
-                    respuesta.message = `Este evento está superpuesto. Solo puede hacerse 
-                                         check-in en el evento primario.`;
+                    respuesta.message =
+                        `Este evento está superpuesto. ` +
+                        `Solo puede hacerse check-in en el evento primario.`;
                     return respuesta;
                 }
 
@@ -262,15 +268,18 @@ class RoomService {
                 const eventStart = new Date(event.startTime).getTime();
 
                 if (now < eventStart) {
-                    respuesta.message = `No puedes hacer check-in antes del horario de inicio 
-                                         del evento (${new Date(eventStart).toLocaleTimeString('es-ES',
-                                         { hour: '2-digit', minute: '2-digit' })}).`;
+                    respuesta.message =
+                        `No puedes hacer check-in antes del horario de inicio ` +
+                        `del evento (${new Date(eventStart).toLocaleTimeString('es-ES',
+                            { hour: '2-digit', minute: '2-digit' })}).`;
                     return respuesta;
                 }
 
-                console.log(`[RoomService] Evento ${eventId} 
-                           (NO modificado) permitiendo check-in en overlap causado por 
-                            modificación del evento ${overlapInfo.primaryEventId}`);
+                console.log(
+                    `[RoomService] Evento ${eventId} ` +
+                    `(NO modificado) permitiendo check-in en overlap causado por ` +
+                    `modificación del evento ${overlapInfo.primaryEventId}`
+                );
             }
         }
 
@@ -294,21 +303,13 @@ class RoomService {
         return respuesta;
     }
 
-    /**
-     * Marca una room como eliminada (soft delete)
-     * Se usa cuando la room ya no existe en Google Admin SDK
-     */
     async softDeleteRoom(roomEmail: string): Promise<void> {
         const room = await Room.findByPk(roomEmail);
         if (room) {
-            await room.destroy(); // Con paranoid:true, esto hace soft delete
+            await room.destroy(); 
         }
     }
 
-    /**
-     * Restaura una room eliminada (anula el soft delete)
-     * Se usa cuando una room vuelve a aparecer en Google Admin SDK
-     */
     async restoreRoom(roomEmail: string): Promise<void> {
         await Room.restore({ where: { email: roomEmail } });
     }

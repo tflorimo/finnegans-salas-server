@@ -1,5 +1,5 @@
 import { JobLocal } from "../schedulers/cronSetup";
-import RoomStatusService from "../services/RoomSyncService";
+import RoomStatusService from "../services/roomSyncService";
 
 /**
  * Job local que limpia y actualiza el estado de las salas según los eventos activos
@@ -12,7 +12,9 @@ export class SyncLocalRoomResourcesJob implements JobLocal {
             const changesCount = await RoomStatusService.cleanupRoomStatuses();
 
             if (changesCount > 0) {
-                console.log(`[SyncLocalRoomResources] Limpieza completada: ${changesCount} cambio(s) realizado(s)`);
+                console.log(
+                    `[SyncLocalRoomResources] Limpieza completada: ` +
+                    `${changesCount} cambio(s) realizado(s)`);
             }
         } catch (error) {
             console.error('[SyncLocalRoomResources] Error global:', error);

@@ -98,12 +98,15 @@ class RoomStatusService {
                 if (currentEventChanged || currentBusyStatus !== shouldBeBusy) {
                     if (currentBusyStatus !== shouldBeBusy) {
                         await RoomService.updateRoomBusyStatus(room.email, shouldBeBusy);
-                        console.log(`[RoomStatusService] ${room.name}: is_busy=${shouldBeBusy} 
-                                   (checkInStatus=${event.checkInStatus}, inProgress=${isEventInProgress})`);
+                        console.log(
+                            `[RoomStatusService] ${room.name}: is_busy=${shouldBeBusy} ` +
+                            `(checkInStatus=${event.checkInStatus}, inProgress=${isEventInProgress})`
+                        );
                         changes++;
                     }
                 }
             }
+
         } else if (room.get('is_busy')) {
             await RoomService.updateRoomBusyStatus(room.email, false);
             console.log(`[RoomStatusService] ${room.name}: is_busy=false (sin eventos)`);
@@ -143,63 +146,12 @@ class RoomStatusService {
 
         // Múltiples eventos en progreso: determina el primario
         // Filtra eventos activos según las reglas de tiempo real
-        const activeEvents = eventsInProgress.filter(event => {
-            const eventStart = new Date(event.startTime).getTime();
-            const eventEnd = new Date(event.endTime).getTime();
-            const fifteenMinutesAfterStart = eventStart + (15 * 60 * 1000);
-
-            if (now.getTime() < eventStart) {
-                return false;
-            }
-
-            if (now.getTime() >= eventEnd) {
-                return false;
-            }
-
-            if (now.getTime() > fifteenMinutesAfterStart && event.checkInStatus !== CheckInStatus.CHECKED_IN) {
-                return false;
-            }
-
-            return true;
-        });
+        const activeEvents = EventService.filterActiveEvents(eventsInProgress, now);
 
         if (activeEvents.length === 0) return null;
 
-        activeEvents.sort((a, b) => {
-            const aModified = a.createdAt.getTime() !== a.updatedAt.getTime();
-            const bModified = b.createdAt.getTime() !== b.updatedAt.getTime();
-            const aStartTime = new Date(a.startTime).getTime();
-            const bStartTime = new Date(b.startTime).getTime();
-
-            if (aModified && !bModified) {
-                if (now.getTime() >= bStartTime) {
-                    return 1;
-                }
-                return -1;
-            }
-
-            if (!aModified && bModified) {
-                if (now.getTime() >= aStartTime) {
-                    return -1;
-                }
-                return 1;
-            }
-
-            const aEffectiveTime = aModified ? a.updatedAt.getTime() : a.createdAt.getTime();
-            const bEffectiveTime = bModified ? b.updatedAt.getTime() : b.createdAt.getTime();
-
-            if (aEffectiveTime !== bEffectiveTime) {
-                return aEffectiveTime - bEffectiveTime;
-            }
-
-            if (aStartTime !== bStartTime) {
-                return aStartTime - bStartTime;
-            }
-
-            return a.id.localeCompare(b.id);
-        });
-
-        const primaryEvent = activeEvents[0];
+        const sortedEvents = EventService.sortEventsByPriority(activeEvents, now);
+        const primaryEvent = sortedEvents[0];
 
         if (primaryEvent.checkInStatus === CheckInStatus.EXPIRED) {
             const newStatus = EventService.determineCheckInStatus(
@@ -210,8 +162,10 @@ class RoomStatusService {
 
             if (newStatus !== CheckInStatus.EXPIRED) {
                 await EventService.updateEventCheckInStatus(primaryEvent.id, newStatus);
-                console.log(`[RoomStatusService] Evento ${primaryEvent.id} promovido de EXPIRED a 
-                           ${newStatus} (ahora es primario)`);
+                console.log(
+                    `[RoomStatusService] Evento ${primaryEvent.id} promovido de EXPIRED a ` +
+                    `${newStatus} (ahora es primario)`
+                );
             }
         }
 
@@ -227,13 +181,17 @@ class RoomStatusService {
 
                     if (wasMarked && this.shouldLog(`overlap:${event.id}:${primaryEvent.id}`)) {
                         const reason = !primaryWasModified ? 'overlap original' : 'ambos modificados';
-                        console.log(`[RoomStatusService] Evento ${event.id} marcado como superpuesto 
-                                   (${reason}). Primario: ${primaryEvent.id}`);
+                        console.log(
+                            `[RoomStatusService] Evento ${event.id} marcado como superpuesto ` +
+                            `(${reason}). Primario: ${primaryEvent.id}`
+                        );
                     }
                 } else {
                     if (this.shouldLog(`unmodified:${event.id}:${primaryEvent.id}`)) {
-                        console.log(`[RoomStatusService] Evento ${event.id} (NO modificado) 
-                                    mantiene prioridad sobre primario modificado ${primaryEvent.id}`);
+                        console.log(
+                            `[RoomStatusService] Evento ${event.id} ` +
+                            `(NO modificado) mantiene prioridad sobre primario modificado ${primaryEvent.id}`
+                        );
                     }
                 }
             }

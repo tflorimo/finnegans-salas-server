@@ -48,8 +48,10 @@ export class SyncCalendarEventsJob implements JobRemoto {
 
                 for (const localEvent of localEvents) {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
-                        console.log(`[SyncCalendarEvents] Evento ${localEvent.id} eliminado del calendar, 
-                                    marcando deletedAt...`);
+                        console.log(
+                            `[SyncCalendarEvents] Evento ${localEvent.id} ` +
+                            `eliminado del calendar, marcando deletedAt...`
+                        );
                         await EventService.softDeleteEvent(localEvent.id);
                     }
                 }
@@ -67,11 +69,27 @@ export class SyncCalendarEventsJob implements JobRemoto {
 
                         updatedEvent.checkInStatus = correctStatus;
 
+                        const attendeesChanged = () => {
+                            const existing = eventSearched.attendees || [];
+                            const updated = updatedEvent.attendees || [];
+
+                            if (existing.length !== updated.length) return true;
+
+                            const existingEmails = existing.map(a => a.email).sort();
+                            const updatedEmails = updated.map(a => a.email).sort();
+
+                            return JSON.stringify(existingEmails) !== JSON.stringify(updatedEmails);
+                        };
+
                         const hasChanges =
-                            new Date(eventSearched.startTime).getTime() !== new Date(updatedEvent.startTime).getTime() ||
-                            new Date(eventSearched.endTime).getTime() !== new Date(updatedEvent.endTime).getTime() ||
+                            new Date(eventSearched.startTime).getTime() !==
+                            new Date(updatedEvent.startTime).getTime() ||
+                            new Date(eventSearched.endTime).getTime() !==
+                            new Date(updatedEvent.endTime).getTime() ||
                             eventSearched.title !== updatedEvent.title ||
-                            eventSearched.checkInStatus !== updatedEvent.checkInStatus;
+                            eventSearched.checkInStatus !== updatedEvent.checkInStatus ||
+                            eventSearched.creatorMail !== updatedEvent.creatorMail ||
+                            attendeesChanged();
 
                         if (hasChanges) {
                             await EventService.upsertEvent(updatedEvent);
