@@ -9,31 +9,38 @@ export const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
 class CheckInService {
 
+    private getTimestamp(date: Date): number {
+        return new Date(date).getTime();
+    }
+
+    private getEventTimestamps(startTime: Date, endTime: Date) {
+        return {
+            start: this.getTimestamp(startTime),
+            end: this.getTimestamp(endTime),
+            tenMinutesBefore: this.getTimestamp(startTime) - TEN_MINUTES_MS,
+            fifteenMinutesAfterStart: this.getTimestamp(startTime) + FIFTEEN_MINUTES_MS
+        };
+    }
+
     private isEventInProgress(startTime: Date, endTime: Date, nowMs = Date.now()): boolean {
-        const start = new Date(startTime).getTime();
-        const end = new Date(endTime).getTime();
+        const { start, end } = this.getEventTimestamps(startTime, endTime);
         return nowMs >= start && nowMs < end;
     }
 
     determineCheckInStatus(startTime: Date, endTime: Date, currentStatus?: CheckInStatus): CheckInStatus {
         const now = Date.now();
-        const start = new Date(startTime).getTime();
-        const end = new Date(endTime).getTime();
-        const fifteenMinutesAfterStart = start + FIFTEEN_MINUTES_MS;
+        const { end, fifteenMinutesAfterStart } = this.getEventTimestamps(startTime, endTime);
 
         if (currentStatus === CheckInStatus.CHECKED_IN) {
             return CheckInStatus.CHECKED_IN;
         }
-        if (now >= end) {
+
+        if (now >= end || now > fifteenMinutesAfterStart) {
             return CheckInStatus.EXPIRED;
         }
 
         if (now < fifteenMinutesAfterStart) {
             return CheckInStatus.PENDING;
-        }
-
-        if (now > fifteenMinutesAfterStart) {
-            return CheckInStatus.EXPIRED;
         }
 
         return CheckInStatus.PENDING;
