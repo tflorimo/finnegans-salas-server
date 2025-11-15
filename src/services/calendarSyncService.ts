@@ -145,7 +145,7 @@ class CalendarSyncService {
                                 // @LOG
                                 console.log(
                                     `[CalendarSyncService] Evento ${event.id} ` +
-                                    `cambió de sala: ${eventSearched.roomEmail} → ${newRoomEmail}`
+                                    `cambió de sala: \n${eventSearched.roomEmail} → ${newRoomEmail}`
                                 );
                             }
 
@@ -163,7 +163,7 @@ class CalendarSyncService {
                             // @LOG
                             console.log(
                                 `[CalendarSyncService] Evento ${event.id} restaurado ` +
-                                `(ahora en ${updatedEvent.roomEmail})`
+                                `\n(ahora en ${updatedEvent.roomEmail})`
                             );
                         }
 

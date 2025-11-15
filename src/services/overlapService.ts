@@ -24,11 +24,11 @@ class OverlapService {
                     const wasMarked = await eventService.setEventOverlapStatus(event.id, OverlapStatus.OVERLAPPED);
 
                     if (wasMarked) {
-                        const reason = !primaryWasModified ? 'overlap original' : 'ambos modificados';
+                        const reason = !primaryWasModified ? '[OVERLAP]' : '[MODIFICADO]';
                         // @LOG
                         console.log(
                             `[OverlapService] Evento ${event.id} marcado como superpuesto ` +
-                            `(${reason}). Primario: ${primaryEvent.id}`
+                            `\n${reason}. Evento Primario: ${primaryEvent.id}`
                         );
                     }
 
