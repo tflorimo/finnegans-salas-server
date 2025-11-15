@@ -1,7 +1,7 @@
 import { DataTypes, Model, Optional } from "sequelize";
 import sequelize from "../config/database";
 import { Attendee, EventAttributes } from "./event.types";
-import { CheckInStatus } from "../dtos/eventDTO";
+import { CheckInStatus, OverlapStatus } from "../dtos/eventDTO";
 
 interface EventCreationAttributes extends Optional<EventAttributes, never> { }
 export class Event extends Model<EventAttributes, EventCreationAttributes> implements EventAttributes {
@@ -13,6 +13,8 @@ export class Event extends Model<EventAttributes, EventCreationAttributes> imple
     public endTime!: Date;
     public checkInStatus!: CheckInStatus;
     public attendees!: Attendee[];
+    public overlapStatus!: OverlapStatus;
+    public scheduleUpdatedAt?: Date | null;
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
     public readonly deletedAt!: Date | null;
@@ -60,6 +62,15 @@ Event.init(
         },
         attendees: {
             type: DataTypes.JSON,
+            allowNull: true,
+        },
+        overlapStatus: {
+            type: DataTypes.ENUM(...Object.values(OverlapStatus)),
+            defaultValue: OverlapStatus.NONE,
+            allowNull: false,
+        },
+        scheduleUpdatedAt: {
+            type: DataTypes.DATE,
             allowNull: true,
         },
     },
