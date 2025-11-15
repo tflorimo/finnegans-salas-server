@@ -1,7 +1,6 @@
 import { Room, Event } from "../models";
 import { RoomRequestDTO, RoomDTO } from "../dtos/roomDTO";
 import { EventDTOResponse } from "../dtos/eventDTO";
-import type { RoomAttributes } from "../models/room.types";
 import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 import eventService from "./eventService";
@@ -65,14 +64,13 @@ class RoomService {
             if (event && !event.deletedAt) {
                 const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
 
-                currentEventDTO = mapEventToResponseDTO(event, creatorName, true);
+                currentEventDTO = mapEventToResponseDTO(event, creatorName, event.overlapStatus);
 
             } else {
                 console.warn(
                     `[enrichRoomWithEvents] Evento ${event ? 'eliminado' : 'fantasma'} detectado ` +
                     `en ${room.email}: ${currentEventId}`
                 );
-                await room.update({ current_event: null, is_busy: false });
             }
         }
 
@@ -81,19 +79,7 @@ class RoomService {
     }
 
     async upsertRoom(roomDTO: RoomDTO): Promise<void> {
-        const roomValues: RoomAttributes = {
-            email: roomDTO.email,
-            name: roomDTO.name,
-            capacity: roomDTO.capacity,
-            description: roomDTO.description ?? null,
-            floor: roomDTO.floor,
-            type: roomDTO.type,
-            is_busy: roomDTO.is_busy,
-            current_event: null,
-            resources: roomDTO.resources ?? null,
-        };
-
-        await Room.upsert(roomValues);
+        await Room.upsert(roomDTO);
     }
 
     async getAllRoomEmails(): Promise<string[]> {
@@ -107,6 +93,11 @@ class RoomService {
 
     getCurrentEventId(room: Room): string | null {
         return room.get('current_event') as string | null;
+    }
+
+    async getRoomBusyStatus(roomEmail: string): Promise<boolean | null> {
+        const room = await Room.findByPk(roomEmail);
+        return room ? (room.get('is_busy') as boolean) : null;
     }
 
     async reloadRoom(room: Room): Promise<void> {
@@ -127,11 +118,13 @@ class RoomService {
         }
     }
 
-    async clearRoom(roomEmail: string): Promise<void> {
-        await Room.update(
+    async clearRoom(roomEmail: string): Promise<boolean> {
+        const [affected] = await Room.update(
             { current_event: null, is_busy: false },
             { where: { email: roomEmail } }
         );
+
+        return affected > 0;
     }
 
     async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<boolean> {
@@ -151,7 +144,11 @@ class RoomService {
             }
         }
 
-        const currentEvent = room.get('current_event') as string | null;
+        const currentEvent = this.getCurrentEventId(room);
+
+        if (currentEvent === eventId) {
+            return false;
+        }
 
         if (currentEvent) {
             if (await currentEventService.isCurrentEventEnded(currentEvent)) {
