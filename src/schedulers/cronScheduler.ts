@@ -1,4 +1,5 @@
 import * as cron from 'node-cron';
+import { formatDoneLog, formatOfflineLog, formatCronLog, formatStartLog } from '../utils/dateUtils';
 
 export interface ScheduleConfig {
     name: string;
@@ -12,29 +13,32 @@ class CronScheduler {
     
     schedule(config: ScheduleConfig) {
         if (!config.enabled) {
-            console.log(`Job ${config.name} offline`);
+            console.log(formatOfflineLog(config.name));
             return;
         }
         
         const task = cron.schedule(config.cronExpression, async () => {
-            console.log(`Ejecutando: ${config.name}`);
+            console.log(formatStartLog(config.name));
+
+            const start = Date.now();
+
             try {
                 await config.task();
-                console.log(`Completado: ${config.name}`);
+                console.log(formatDoneLog(config.name, Date.now() - start));
             } catch (error) {
-                console.error(`Error en ${config.name}:`, error);
+                console.error(`[ERROR] ${config.name}:`, error);
             }
         });
         
         this.jobs.set(config.name, task);
         task.start();
-        console.log(`Job programado: ${config.name} (${config.cronExpression})`);
+        console.log(formatCronLog(config.name, config.cronExpression));
     }
     
     stopAll() {
         this.jobs.forEach((job, name) => {
             job.stop();
-            console.log(`Job detenido: ${name}`);
+            console.log(formatOfflineLog(name));
         });
         this.jobs.clear();
     }

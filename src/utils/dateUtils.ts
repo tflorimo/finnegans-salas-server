@@ -86,7 +86,7 @@ export const formatOfflineLog = (name: string): string => {
 };
 
 export const formatModelLog = (message: string): string => {
-    return `[${getLocalTimestamp()}] [MODELS] ${message}`;
+    return `[${getLocalTimestamp()}] [MODEL]  ${message}`;
 };
 
 export const formatInitLog = (message: string): string => {

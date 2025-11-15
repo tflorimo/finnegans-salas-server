@@ -7,7 +7,7 @@ class EventController {
             const events = await eventService.getAllEvents();
             res.status(200).json(events);
         } catch (error) {
-            console.error('Error en getAllEvents:', error);
+            console.error('[EventController] [getAllEvents]', error);
             res.status(500).json({
                 message: 'Error obteniendo eventos',
                 error: error instanceof Error ? error.message : 'Error desconocido'
