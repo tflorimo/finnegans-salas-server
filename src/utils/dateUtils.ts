@@ -50,3 +50,58 @@ export function getDateWithoutTime(date: Date): Date {
     d.setHours(0, 0, 0, 0);
     return d;
 }
+
+const pad = (num: number): string => String(num).padStart(2, "0");
+
+export const getLocalTimestamp = (): string => {
+    const now = new Date();
+
+    const year = now.getFullYear();
+    const month = pad(now.getMonth() + 1);
+    const day = pad(now.getDate());
+
+    const hours = pad(now.getHours());
+    const minutes = pad(now.getMinutes());
+    const seconds = pad(now.getSeconds());
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
+// ----- Formatters de logs -----
+
+export const formatStartLog = (name: string): string => {
+    return `[${getLocalTimestamp()}] [START]  ${name}`;
+};
+
+export const formatDoneLog = (name: string, durationMs: number): string => {
+    return `[${getLocalTimestamp()}] [DONE]   ${name} (${durationMs} ms)`;
+};
+
+export const formatScheduledLog = (name: string, cron: string): string => {
+    return `[${getLocalTimestamp()}] [CRON]   ${name} (${cron})`;
+};
+
+export const formatOfflineLog = (name: string): string => {
+    return `[${getLocalTimestamp()}] [OFF]     ${name}`;
+};
+
+export const formatModelLog = (message: string): string => {
+    return `[${getLocalTimestamp()}] [MODELS] ${message}`;
+};
+
+export const formatInitLog = (message: string): string => {
+    return `[${getLocalTimestamp()}] [INIT]   ${message}`;
+};
+
+// ----- @TODO Formatters de logs sin uso -----
+
+export const formatErrorLog = (name: string, error: any): string => {
+    const msg = error?.message ?? String(error);
+    return `[${getLocalTimestamp()}] [ERROR]  ${name}\n   → ${msg}`;
+};
+
+export const formatWarnLog = (message: string): string => {
+    return `[${getLocalTimestamp()}] [WARN]   ${message}`;
+};
+
+
