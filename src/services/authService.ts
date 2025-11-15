@@ -29,6 +29,7 @@ class AuthService {
     const email = profile.email?.toLowerCase();
 
     if (!email) {
+      // @LOG
       throw new Error("No se pudo obtener el email de Google");
     }
 
