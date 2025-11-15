@@ -1,5 +1,11 @@
 export type ResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction';
 
+export enum OverlapStatus {
+  NONE = "NONE",
+  PRIMARY = "PRIMARY",
+  OVERLAPPED = "OVERLAPPED",
+}
+
 export enum CheckInStatus {
     PENDING = 'pending',
     CHECKED_IN = 'checked_in',
@@ -17,10 +23,17 @@ export interface EventDTO {
     startTime: Date;
     title: string;
     endTime: Date;
-    checkInStatus: CheckInStatus;
     attendees: AttendeeDTO[];
+    overlapStatus: OverlapStatus;
+    scheduleUpdatedAt?: Date | null;
 }
-export interface EventDTOResponse extends EventDTO {
+
+export interface EventCheckInDTO extends EventDTO {
+    checkInStatus: CheckInStatus;
+}
+
+// Para el frontend
+export interface EventDTOResponse extends EventCheckInDTO {
     roomName?: string;
     date: Date;
     creatorName: string;
