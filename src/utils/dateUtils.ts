@@ -77,7 +77,7 @@ export const formatDoneLog = (name: string, durationMs: number): string => {
     return `[${getLocalTimestamp()}] [DONE]   ${name} (${durationMs} ms)`;
 };
 
-export const formatScheduledLog = (name: string, cron: string): string => {
+export const formatCronLog = (name: string, cron: string): string => {
     return `[${getLocalTimestamp()}] [CRON]   ${name} (${cron})`;
 };
 
