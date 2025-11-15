@@ -39,10 +39,6 @@ class CheckInService {
             return CheckInStatus.EXPIRED;
         }
 
-        if (now < fifteenMinutesAfterStart) {
-            return CheckInStatus.PENDING;
-        }
-
         return CheckInStatus.PENDING;
     }
 
@@ -105,7 +101,7 @@ class CheckInService {
             return respuesta;
         }
 
-        const overlapInfo = await overlapService.checkEventOverlap(
+        const overlapInfo = await overlapService.checkEventOverlapForCheckIn(
             eventId,
             roomEmail,
             event.startTime,
@@ -113,7 +109,7 @@ class CheckInService {
         );
 
         if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
-            const eventWasModified = overlapService.wasEventModified(event);
+            const eventWasModified = overlapService.wasEventTimeModified(event);
 
             if (eventWasModified) {
                 respuesta.message =
@@ -124,7 +120,7 @@ class CheckInService {
 
             const primaryEvent = await eventService.getEventById(overlapInfo.primaryEventId!);
             if (primaryEvent) {
-                const primaryWasModified = overlapService.wasEventModified(primaryEvent);
+                const primaryWasModified = overlapService.wasEventTimeModified(primaryEvent);
 
                 if (!primaryWasModified) {
                     respuesta.message =
@@ -145,8 +141,9 @@ class CheckInService {
                 }
 
                 console.log(
+                    // @LOG
                     `[CheckInService] Evento ${eventId} ` +
-                    `(NO modificado) permitiendo check-in en overlap causado por ` +
+                    `(no modificado) permitiendo check-in en overlap causado por ` +
                     `modificación del evento ${overlapInfo.primaryEventId}`
                 );
             }
@@ -157,12 +154,14 @@ class CheckInService {
         const now = Date.now();
         const isEventInProgress = this.isEventInProgress(startTime, endTime, now);
 
-        await currentRoom.update({
-            current_event: eventId,
-            is_busy: isEventInProgress
-        });
-
+        await roomService.updateRoomStatus(roomEmail, eventId, isEventInProgress);
         await eventService.reloadEvent(event);
+
+        console.log(
+            // @LOG
+            `[CheckInService] CheckIn de la sala ${roomEmail}` +
+            `\nen el evento ${eventId} realizado con éxito por ${userEmail}`
+        );
 
         respuesta.success = true;
         respuesta.event = event;
@@ -194,7 +193,6 @@ class CheckInService {
         }
 
         return { canCheckIn: true };
-
     }
 }
 
