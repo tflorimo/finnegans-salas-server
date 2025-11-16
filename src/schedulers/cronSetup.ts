@@ -3,6 +3,7 @@ import { SyncApiRoomResourcesJob } from "../jobs/syncApiRoomResources";
 import { SyncLocalRoomResourcesJob } from "../jobs/syncLocalRoomResources";
 import cronScheduler from "./cronScheduler";
 
+//@TODO: Agregar variables en .env para los tiempos de los cron jobs (para un manejo sencillo)
 export const setupJobs = () => {
     const syncApiRoomResourcesJob = new SyncApiRoomResourcesJob();
     const syncCalendarEvents = new SyncCalendarEventsJob();
@@ -28,8 +29,8 @@ export const setupJobs = () => {
 
     // Job de limpieza: actualiza estado de salas según eventos activos
     cronScheduler.schedule({
-        name: 'Limpieza y actualización de estado de salas',
-        cronExpression: '*/30 * * * * *', // Cada 30 segundos. TODO: Determinar en cuánto dejar para producción.
+        name: 'Limpieza y actualización de estado de salas y eventos activos',
+        cronExpression: '*/15 * * * * *', // Cada 15 segundos. TODO: Determinar en cuánto dejar para producción.
         task: async () => {
             await syncLocalRoomResourcesJob.execute();
         },
@@ -39,7 +40,8 @@ export const setupJobs = () => {
 
 /**
  * Interfaz para todos los jobs remotos (que interactúan con Google APIs)
- * Obliga a cumplir el contrato de tener el método execute y la propiedad ADMIN_ACCOUNT_IMPERSONATE (la cuenta utilizada por el back para hablar con Google APIs)
+ * Obliga a cumplir el contrato de tener el método execute y la propiedad ADMIN_ACCOUNT_IMPERSONATE 
+ * (la cuenta utilizada por el back para hablar con Google APIs)
  */
 export interface JobRemoto {
     execute(): Promise<void>;

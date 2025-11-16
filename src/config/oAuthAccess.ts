@@ -1,4 +1,5 @@
 const allowedDomain = process.env.GOOGLE_ALLOWED_DOMAIN;
+//@TODO: Eliminar para producción
 const testerEmails = new Set(
   (process.env.GOOGLE_TEST_USERS || "")
     .split(",")
@@ -22,10 +23,12 @@ export const isOAuthAccessDeniedError = (
 export const ensureOAuthAccess = (email: string): void => {
   const normalized = email.toLowerCase();
 
-/*   if (!normalized.endsWith(`@${allowedDomain}`)) {
-    throw new OAuthAccessDeniedError("oauth_domain_not_allowed");
-  } */
+  //@TODO: descomentar para producción
+  /*   if (!normalized.endsWith(`@${allowedDomain}`)) {
+      throw new OAuthAccessDeniedError("oauth_domain_not_allowed");
+    } */
 
+  //@TODO: Eliminar para producción
   if (!testerEmails.has(normalized)) {
     throw new OAuthAccessDeniedError("oauth_not_tester");
   }

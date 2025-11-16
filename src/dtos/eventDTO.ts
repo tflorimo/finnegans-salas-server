@@ -5,13 +5,11 @@ export enum CheckInStatus {
     CHECKED_IN = 'checked_in',
     EXPIRED = 'expired'
 }
-
 export interface AttendeeDTO {
     email: string;
     responseStatus: ResponseStatus;
     resource: boolean;
 }
-
 export interface EventDTO {
     id: string;
     creatorMail: string;
