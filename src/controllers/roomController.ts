@@ -9,7 +9,7 @@ class RoomController {
             res.status(200).json(rooms);
         } catch (error) {
             res.status(500).json({
-                error: 'Error al obtener las habitaciones',
+                error: '[RoomController][getAllRooms] Error al obtener las habitaciones',
                 message: error instanceof Error ? error.message : 'Error no conocido'
             });
         }
@@ -22,7 +22,7 @@ class RoomController {
             
             if (!room) {
                 res.status(404).json({
-                    error: 'Habitación no encontrada',
+                    error: '[RoomController] [getRoomById] Habitación no encontrada',
                     message: `No se encontró una habitación con el ID ${id}`
                 });
                 return;
@@ -31,7 +31,7 @@ class RoomController {
             res.status(200).json(room);
         } catch (error) {
             res.status(500).json({
-                error: 'Error al obtener la habitación',
+                error: '[RoomController][getRoomById]',
                 message: error instanceof Error ? error.message : 'Error no conocido'
             });
         }
@@ -44,7 +44,7 @@ class RoomController {
 
             if (!eventId) {
                 res.status(400).json({
-                    error: "ID de evento requerido",
+                    error: "[RoomController][checkIn]",
                     message: "Debes proporcionar el ID del evento para hacer check-in"
                 });
                 return;
@@ -54,7 +54,7 @@ class RoomController {
             
             if (!resultado.success) {
                 res.status(400).json({
-                    error: "Hubo un error al intentar hacer check-in",
+                    error: "[RoomController][checkIn] Hubo un error al intentar hacer check-in",
                     message: resultado.message
                 });
                 return;
@@ -67,7 +67,7 @@ class RoomController {
         
         } catch (error) {
             res.status(500).json({
-                error: 'Error al hacer check-in en el evento',
+                error: '[RoomController][checkIn] Error al hacer check-in en el evento',
                 message: error instanceof Error ? error.message : 'Error no conocido'
             });
         }

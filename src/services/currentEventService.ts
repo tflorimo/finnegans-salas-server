@@ -2,7 +2,7 @@ import eventService from "./eventService";
 import { CheckInStatus } from "../dtos/eventDTO";
 import { Event } from "../models";
 import overlapService from "./overlapService";
-import checkInService, { FIFTEEN_MINUTES_MS } from "./checkInService";
+import { FIFTEEN_MINUTES_MS } from "./checkInService";
 
 // Servicio para determinar evento activo, filtrar y definir estado del evento en curso de una sala
 class CurrentEventService {
@@ -23,27 +23,15 @@ class CurrentEventService {
         const sortedEvents = overlapService.evaluatePriority(activeEvents, now);
         const primaryEvent = sortedEvents[0];
 
-        if (primaryEvent.checkInStatus === CheckInStatus.EXPIRED) {
-            const newStatus = checkInService.determineCheckInStatus(
-                primaryEvent.startTime,
-                primaryEvent.endTime,
-                CheckInStatus.EXPIRED
-            );
-
-            if (newStatus !== CheckInStatus.EXPIRED) {
-                await eventService.updateEventCheckInStatus(primaryEvent.id, newStatus);
-                console.log(
-                    `[CurrentEventService] Evento ${primaryEvent.id} promovido de EXPIRED a ` +
-                    `${newStatus} (ahora es primario)`
-                );
-            }
-        }
-
-        // Mientras sucede la sincronización local, se testea la superposición de eventos
+        /* Mientras suscede la sincronización local, se testea la superposición de eventos.
+           Este método actualizará los estados de superposición
+           En caso de que el currentEvent haya cambiado, se actualizarán los estados correspondientes */
+        // @TODO: Esto trae un alto acoplamiento entre servicios, revisar
         await overlapService.handleOverlappingEvents(primaryEvent, activeEvents);
         return primaryEvent.id;
     }
 
+    // @TODO: podría ser un utils para no ir y venir de overlapService a currentEventService
     filterActiveEvents(events: Event[], now: Date): Event[] {
         return events.filter(event => {
             const eventStart = new Date(event.startTime).getTime();
@@ -55,8 +43,10 @@ class CurrentEventService {
                 return false;
             }
 
-            if (nowTime > fifteenMinutesAfterStart && event.checkInStatus !== CheckInStatus.CHECKED_IN) {
-                return false;
+            if (nowTime > fifteenMinutesAfterStart) {
+                if (event.checkInStatus !== CheckInStatus.CHECKED_IN) {
+                    return false;
+                }
             }
 
             return true;

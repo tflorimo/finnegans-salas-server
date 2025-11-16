@@ -1,16 +1,16 @@
 import { SyncCalendarEventsJob } from "../jobs/syncCalendarEvents";
 import { SyncApiRoomResourcesJob } from "../jobs/syncApiRoomResources";
-import { SyncLocalRoomResourcesJob } from "../jobs/syncLocalRoomResources";
+import { SyncLocalResourcesJob } from "../jobs/syncLocalResources";
 import cronScheduler from "./cronScheduler";
 
 //@TODO: Agregar variables en .env para los tiempos de los cron jobs (para un manejo más sencillo)
 export const setupJobs = () => {
     const syncApiRoomResourcesJob = new SyncApiRoomResourcesJob();
     const syncCalendarEvents = new SyncCalendarEventsJob();
-    const syncLocalRoomResourcesJob = new SyncLocalRoomResourcesJob();
+    const syncLocalResourcesJob = new SyncLocalResourcesJob();
 
     cronScheduler.schedule({
-        name: 'Chequeo y sincronización de room resources desde API de Google',
+        name: '[RoomResourcesSync]',
         cronExpression: '* * * * *', // Cada minuto -> @TODO: Cambiar a semana en producción
         task: async () => {
             await syncApiRoomResourcesJob.execute();
@@ -19,20 +19,20 @@ export const setupJobs = () => {
     });
 
     cronScheduler.schedule({
-        name: 'Descarga de eventos de Calendar',
+        name: '[CalendarEventsSync]',
         cronExpression: '* * * * *', // Cada minuto 
         task: async () => {
-            syncCalendarEvents.execute();
+            await syncCalendarEvents.execute();
         },
         enabled: true
     });
 
     // Job de limpieza: actualiza estado de salas según eventos activos
     cronScheduler.schedule({
-        name: 'Limpieza y actualización de estado de salas y eventos activos',
-        cronExpression: '*/15 * * * * *', // Cada 15 segundos. TODO: Determinar en cuánto dejar para producción.
+        name: '[LocalSyncResources]',
+        cronExpression: '*/15 * * * * *', // Cada 15 segundos. @TODO: Determinar en cuánto dejar para producción.
         task: async () => {
-            await syncLocalRoomResourcesJob.execute();
+            await syncLocalResourcesJob.execute();
         },
         enabled: true
     });

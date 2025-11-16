@@ -1,5 +1,6 @@
 import { Room } from "./room";
 import { Event } from "./event";
+import { formatModelLog } from "../utils/dateUtils";
 
 export function asociacionesModelos() {
 
@@ -21,5 +22,6 @@ export function asociacionesModelos() {
         as: 'currentEvent'
     });
 
-    console.log('asociaciones de modelos cargadas');
+    console.log(formatModelLog('Relaciones entre modelos inicializadas.'));
+
 }

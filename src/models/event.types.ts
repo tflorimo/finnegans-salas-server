@@ -1,4 +1,4 @@
-import { ResponseStatus, CheckInStatus } from "../dtos/eventDTO";
+import { ResponseStatus, CheckInStatus, OverlapStatus } from "../dtos/eventDTO";
 export interface Attendee {
     email: string;
     responseStatus: ResponseStatus;
@@ -14,6 +14,8 @@ export interface EventAttributes {
     checkInStatus: CheckInStatus;
     attendees: Attendee[];
     organizerEmail?: string | null;
+    overlapStatus: OverlapStatus;
+    scheduleUpdatedAt?: Date | null;
 }
 
 export { CheckInStatus, ResponseStatus };

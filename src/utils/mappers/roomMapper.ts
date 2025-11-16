@@ -2,20 +2,22 @@ import { EventDTOResponse } from "../../dtos/eventDTO";
 import { RoomCreateDTO, RoomDTO, RoomRequestDTO, RoomResponseDTO } from "../../dtos/roomDTO";
 import { Room } from "../../models";
 
-function extractFeatures(dto: RoomResponseDTO | any): string[] | null {
-    if (!dto.featureInstances) return new Array<string>();
+function extractFeatures(dto: RoomResponseDTO | any): string[] {
+    const emptyFeaturesInstance = new Array<string>();
+
+    if (!dto.featureInstances) return emptyFeaturesInstance;
 
     const features = dto.featureInstances
         .map((fi: any) => fi?.feature?.name)
         .filter((n: any): n is string => typeof n === 'string' && n.trim().length > 0);
 
-    return features.length > 0 ? features : null;
+    return features.length > 0 ? features : emptyFeaturesInstance;
 }
 
 function buildRoomName(resourceName: string, floorName: string): string {
     let roomName = resourceName || 'Sala sin nombre';
 
-    const floorInName = roomName.match(/\d+/)?.[0];
+    const floorInName = roomName.match(/(?:Piso|Floor)\s*(\d+)/i)?.[1];
 
     if (floorInName !== floorName) {
         roomName = `${roomName} - Piso ${floorName}`;
@@ -37,17 +39,20 @@ function mapCommonRoomFields(resource: any, features: string[] | null): Partial<
 }
 
 // Actualiza una room existente con datos de Google Admin SDK, preservando estado local
-export function updateRoom(resource: any, room: RoomCreateDTO | Room): RoomCreateDTO {
+export function updateRoomMapper(
+    resource: any, 
+    currentIsBusy: boolean, 
+    currentEventId: string | null
+): RoomCreateDTO {
     const features = extractFeatures(resource);
-    const is_busy = room instanceof Room ? room.get('is_busy') : room.is_busy;
-    const current_event = room instanceof Room ? room.get('current_event') : room.current_event;
 
     return {
         ...mapCommonRoomFields(resource, features),
-        is_busy: is_busy as boolean,
-        current_event: current_event as string | null,
+        is_busy: currentIsBusy,
+        current_event: currentEventId,
     } as RoomCreateDTO;
 }
+
 // Mapea una room nueva desde Google Admin SDK API a RoomDTO
 export function mapRoomResponseToRoomDTO(roomResponse: RoomResponseDTO): RoomDTO | null {
     if (!roomResponse.resourceEmail) return null;

@@ -1,41 +1,44 @@
+import { OverlapStatus } from "../dtos/eventDTO";
 import { Event } from "../models";
 import currentEventService from "./currentEventService";
 import eventService from "./eventService";
-import roomSyncService from "./roomSyncService";
 
 // Servicio dedicado a la gestión de superposiciones de eventos
 class OverlapService {
 
-    wasEventModified(event: Event): boolean {
-        return event.createdAt.getTime() !== event.updatedAt.getTime();
+    wasEventTimeModified(event: Event): boolean {
+        return event.scheduleUpdatedAt != null;
     }
 
+    // Método derivado de la lógica de CurrentEventService, para manejar eventos superpuestos
     async handleOverlappingEvents(primaryEvent: Event, activeEvents: Event[]) {
-        const primaryWasModified = this.wasEventModified(primaryEvent);
+        const primaryWasModified = this.wasEventTimeModified(primaryEvent);
 
         for (const event of activeEvents) {
             if (event.id !== primaryEvent.id) {
-                const eventWasModified = this.wasEventModified(event);
-                const shouldMarkAsExpired = !primaryWasModified || eventWasModified;
+                const areOverlapped = this.eventsOverlap(event.startTime, event.endTime, primaryEvent.startTime, primaryEvent.endTime);
+                const eventWasModified = this.wasEventTimeModified(event);
+                const shouldMarkAsOverlapped = !primaryWasModified || eventWasModified && areOverlapped;
 
-                if (shouldMarkAsExpired) {
-                    const wasMarked = await eventService.markEventAsOverlapping(event.id);
+                if (shouldMarkAsOverlapped) {
+                    const wasMarked = await eventService.setEventOverlapStatus(event.id, OverlapStatus.OVERLAPPED);
 
-                    if (wasMarked && roomSyncService.shouldLog(`overlap:${event.id}:${primaryEvent.id}`)) {
-                        const reason = !primaryWasModified ? 'overlap original' : 'ambos modificados';
+                    if (wasMarked) {
+                        const reason = !primaryWasModified ? '[OVERLAP]' : '[MODIFICADO]';
+                        // @LOG
                         console.log(
                             `[OverlapService] Evento ${event.id} marcado como superpuesto ` +
-                            `(${reason}). Primario: ${primaryEvent.id}`
+                            `\n${reason}. Evento Primario: ${primaryEvent.id}`
                         );
                     }
 
                 } else {
-                    if (roomSyncService.shouldLog(`unmodified:${event.id}:${primaryEvent.id}`)) {
-                        console.log(
-                            `[OverlapService] Evento ${event.id} ` +
-                            `(NO modificado) mantiene prioridad sobre primario modificado ${primaryEvent.id}`
-                        );
-                    }
+                    await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
+                    // @LOG
+                    console.log(
+                        `[OverlapService] Evento ${event.id} ` +
+                        `(no modificado) mantiene prioridad sobre primario modificado ${primaryEvent.id}`
+                    );
                 }
             }
         }
@@ -44,8 +47,8 @@ class OverlapService {
     // Evalúa y ordena eventos según prioridad definida
     evaluatePriority(events: Event[], now: Date): Event[] {
         return [...events].sort((a, b) => {
-            const aModified = a.createdAt.getTime() !== a.updatedAt.getTime();
-            const bModified = b.createdAt.getTime() !== b.updatedAt.getTime();
+            const aModified = this.wasEventTimeModified(a);
+            const bModified = this.wasEventTimeModified(b);
             const aStartTime = new Date(a.startTime).getTime();
             const bStartTime = new Date(b.startTime).getTime();
             const nowTime = now.getTime();
@@ -89,8 +92,8 @@ class OverlapService {
         return start1 < end2 && start2 < end1;
     }
 
-    // Verifica si un evento está superpuesto con otros
-    async checkEventOverlap(eventId: string, roomEmail: string, startTime: Date, endTime: Date): Promise<{
+    // Verifica si un evento está superpuesto con otros antes de realizar un checkIn
+    async checkEventOverlapForCheckIn(eventId: string, roomEmail: string, startTime: Date, endTime: Date): Promise<{
         isOverlapping: boolean;
         isPrimary: boolean;
         primaryEventId?: string;
@@ -105,7 +108,7 @@ class OverlapService {
             return { isOverlapping: false, isPrimary: true };
         }
 
-        const currentEvent = await Event.findByPk(eventId);
+        const currentEvent = await eventService.getEventById(eventId);
         if (!currentEvent) {
             return { isOverlapping: false, isPrimary: true };
         }

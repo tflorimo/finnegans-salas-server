@@ -1,10 +1,9 @@
 import { Event, Room } from "../models";
-import { EventDTO, EventDTOResponse, CheckInStatus } from "../dtos/eventDTO";
-import { EventAttributes, Attendee } from "../models/event.types";
+import { EventDTOResponse, CheckInStatus, EventCheckInDTO, OverlapStatus } from "../dtos/eventDTO";
+import { Attendee } from "../models/event.types";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 import { getRemainingWeekRange } from "../utils/dateUtils";
 import userService from "./userService";
-import overlapService from "./overlapService";
 import { Op } from "sequelize";
 
 const UNKNOWN_USER_NAME = "Usuario desconocido";
@@ -38,10 +37,8 @@ class EventService {
         const eventos = await Event.findAll({
             where: {
                 roomEmail: roomId,
-                startTime: {
-                    [Op.gte]: start,
-                    [Op.lte]: end
-                }
+                startTime: { [Op.lt]: end },    // Para eventos entre ayer y hoy)
+                endTime: { [Op.gt]: start }
             },
             include: [{ model: Room, as: "room", attributes: ["name"] }],
             paranoid: true,
@@ -64,28 +61,18 @@ class EventService {
         });
     }
 
-    async upsertEvent(eventDTO: EventDTO): Promise<void> {
-        const eventValues: EventAttributes = {
-            id: eventDTO.id,
-            creatorMail: eventDTO.creatorMail,
-            roomEmail: eventDTO.roomEmail,
-            startTime: eventDTO.startTime,
-            title: eventDTO.title || "(Sin Título)",
-            endTime: eventDTO.endTime,
-            checkInStatus: eventDTO.checkInStatus,
-            attendees: eventDTO.attendees,
-        }
+    async upsertEvent(event: EventCheckInDTO): Promise<void> {
 
-        const hasRoomResource = eventValues.attendees.some(attendee => attendee.resource);
+        const hasRoomResource = event.attendees.some(attendee => attendee.resource);
 
         if (!hasRoomResource) {
             console.log(
-                `El evento con id "${eventDTO.id}" no tiene asistentes que sean salas, no se guardará.`
+                `El evento con id "${event.id}" no tiene asistentes que sean salas, no se guardará.`
             );
             return;
         }
 
-        await Event.upsert(eventValues);
+        await Event.upsert(event);
     }
 
     // Marca un evento como eliminado (soft delete)
@@ -96,9 +83,9 @@ class EventService {
         }
     }
 
-    // Restaura un evento eliminado (deletedAt) 
     async restoreEvent(eventId: string): Promise<void> {
         await Event.restore({ where: { id: eventId } });
+        // @LOG
         console.log(`[EventService] Evento ${eventId} restaurado`);
     }
 
@@ -117,22 +104,24 @@ class EventService {
         );
     }
 
-    async markEventAsOverlapping(eventId: string): Promise<boolean> {
+    async updateScheduleUpdatedAt(eventId: string, date: Date): Promise<void> {
+        await Event.update(
+            { scheduleUpdatedAt: date },
+            { where: { id: eventId } }
+        );
+    }
+
+    async setEventOverlapStatus(eventId: string, newStatus: OverlapStatus): Promise<boolean> {
         const event = await Event.findByPk(eventId);
-
         if (!event) return false;
-        if (event.checkInStatus === CheckInStatus.EXPIRED) {
-            return false;
-        }
 
-        const eventWasModified = event.createdAt.getTime() !== event.updatedAt.getTime();
-
-        if (event.checkInStatus === CheckInStatus.CHECKED_IN && !eventWasModified) {
+        // Si ya tiene ese mismo status, no hago nada
+        if (event.overlapStatus === newStatus) {
             return false;
         }
 
         await Event.update(
-            { checkInStatus: CheckInStatus.EXPIRED },
+            { overlapStatus: newStatus },
             {
                 where: { id: eventId },
                 silent: true
@@ -140,6 +129,11 @@ class EventService {
         );
 
         return true;
+    }
+
+    private async getOverlapStatus(eventId: string): Promise<OverlapStatus | null> {
+        const event = await Event.findByPk(eventId);
+        return event ? event.overlapStatus : null;
     }
 
     getEventCheckInStatus(event: Event): CheckInStatus {
@@ -176,7 +170,7 @@ class EventService {
 
         return events.map(event => {
             const creatorName = creatorMap.get(event.creatorMail) || UNKNOWN_USER_NAME;
-            return mapEventToResponseDTO(event, creatorName, true);
+            return mapEventToResponseDTO(event, creatorName, event.overlapStatus);
         });
     }
 
@@ -187,16 +181,7 @@ class EventService {
             events.map(async event => {
                 const creatorName = creatorMap.get(event.creatorMail) || UNKNOWN_USER_NAME;
 
-                const overlapInfo = await overlapService.checkEventOverlap(
-                    event.id,
-                    event.roomEmail,
-                    event.startTime,
-                    event.endTime
-                );
-
-                const isPrimary = !overlapInfo.isOverlapping || overlapInfo.isPrimary;
-
-                return mapEventToResponseDTO(event, creatorName, isPrimary);
+                return mapEventToResponseDTO(event, creatorName, event.overlapStatus);
             })
         );
 

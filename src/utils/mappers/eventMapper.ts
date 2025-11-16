@@ -1,4 +1,10 @@
-import { AttendeeDTO, EventDTO, EventDTOResponse, CheckInStatus } from "../../dtos/eventDTO";
+import {
+    AttendeeDTO,
+    EventDTOResponse,
+    CheckInStatus,
+    EventCheckInDTO,
+    OverlapStatus
+} from "../../dtos/eventDTO";
 import { Event } from "../../models";
 import { EventAttributes } from "../../models/event.types";
 import { FIFTEEN_MINUTES_MS } from "../../services/checkInService";
@@ -18,40 +24,63 @@ function mapCommonEventFields(eventResponse: any): Partial<EventAttributes> {
     return {
         id: eventResponse.id as string,
         creatorMail: eventResponse.creator.email as string,
-        title: eventResponse.summary as string,
+        title: eventResponse.summary || "(Sin Título)" as string,
         startTime: new Date(eventResponse.start.dateTime),
         endTime: new Date(eventResponse.end.dateTime),
         attendees: mapAttendees(eventResponse.attendees || []),
     };
 }
 
-// Actualiza un evento existente con datos de Google Calendar, preservando checkInStatus
+// Actualiza un evento existente con datos de Google Calendar, preservando checkInStatus y overlapStatus,
+// y actualizando scheduleUpdatedAt solo si cambió el horario
 export function updateEvent(eventResponse: any, existingEvent: Event): EventAttributes {
+    const commonFields = mapCommonEventFields(eventResponse);
+
+    const newStartTime = commonFields.startTime ?? existingEvent.startTime;
+    const newEndTime = commonFields.endTime ?? existingEvent.endTime;
+
+    const scheduleChanged =
+        newStartTime.getTime() !== existingEvent.startTime.getTime() ||
+        newEndTime.getTime() !== existingEvent.endTime.getTime();
+
+    const scheduleUpdatedAt = scheduleChanged
+        ? new Date()
+        : existingEvent.scheduleUpdatedAt ?? null;
+
     return {
-        ...mapCommonEventFields(eventResponse),
+        ...commonFields,
         roomEmail: existingEvent.roomEmail,
-        checkInStatus: existingEvent.checkInStatus,
+        overlapStatus: existingEvent.overlapStatus || OverlapStatus.PRIMARY,
+        scheduleUpdatedAt,
     } as EventAttributes;
 }
 
-// Mapea un evento nuevo desde Google Calendar API a EventDTO
-export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): EventDTO {
+// Mapea un evento nuevo desde Google Calendar API a EventDTO para check-in
+export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): EventCheckInDTO {
     const startTime = new Date(eventResponse.start.dateTime);
     const now = Date.now();
     const fifteenMinutesAfterStart = startTime.getTime() + FIFTEEN_MINUTES_MS;
-    const initialStatus = now > fifteenMinutesAfterStart
-        ? CheckInStatus.EXPIRED
-        : CheckInStatus.PENDING;
+
+    const initialStatus =
+        now > fifteenMinutesAfterStart
+            ? CheckInStatus.EXPIRED
+            : CheckInStatus.PENDING;
 
     return {
         ...mapCommonEventFields(eventResponse),
         roomEmail: roomEmail,
         checkInStatus: initialStatus,
-    } as EventDTO;
+        overlapStatus: OverlapStatus.PRIMARY,
+        scheduleUpdatedAt: null,
+    } as EventCheckInDTO;
 }
 
 // Mapea un Event del modelo a EventDTOResponse para enviar al frontend
-export function mapEventToResponseDTO(event: Event, creatorName: string, isPrimary: boolean): EventDTOResponse {
+export function mapEventToResponseDTO(
+    event: Event,
+    creatorName: string,
+    overlapStatus?: OverlapStatus
+): EventDTOResponse {
     const room = (event as any).room as { name?: string } | undefined;
 
     let displayTitle = event.title;
@@ -61,7 +90,7 @@ export function mapEventToResponseDTO(event: Event, creatorName: string, isPrima
     const end = new Date(event.endTime);
     const isActive = start <= now && end > now;
 
-    if (isActive && !isPrimary) {
+    if (isActive && overlapStatus === OverlapStatus.OVERLAPPED) {
         displayTitle = `[SUPERPUESTO] - ${event.title}`;
     }
 
@@ -75,6 +104,8 @@ export function mapEventToResponseDTO(event: Event, creatorName: string, isPrima
         checkInStatus: event.checkInStatus,
         attendees: event.attendees as AttendeeDTO[],
         ...(room?.name ? { roomName: room.name } : {}),
+        overlapStatus: overlapStatus || event.overlapStatus,
+        scheduleUpdatedAt: event.scheduleUpdatedAt,
         date: getDateWithoutTime(event.startTime),
         creatorName: creatorName,
         deletedAt: event.deletedAt,

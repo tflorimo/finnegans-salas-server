@@ -25,11 +25,13 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
   } catch (error) {
     if (error instanceof Error) {
       if (error.name === "TokenExpiredError") {
+        // @LOG
         res.status(401).json({ code: "token_expired" });
         return;
       }
 
       if (error.message === "INVALID_ACCESS_TOKEN_CLAIMS") {
+        // @LOG
         res.status(401).json({ code: "token_invalid" });
         return;
       }
@@ -43,11 +45,13 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction): v
   const user = (req as AuthenticatedRequest).user;
 
   if (!user) {
+    // @LOG
     res.status(401).json({ message: "Acceso denegado. No autenticado." });
     return;
   }
 
   if (user.role !== "admin") {
+    // @LOG
     res.status(403).json({ message: "Acceso denegado. Se requieren permisos de administrador." });
     return;
   }
