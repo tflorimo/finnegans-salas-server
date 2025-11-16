@@ -50,7 +50,7 @@ export function updateEvent(eventResponse: any, existingEvent: Event): EventAttr
     return {
         ...commonFields,
         roomEmail: existingEvent.roomEmail,
-        overlapStatus: existingEvent.overlapStatus || OverlapStatus.NONE,
+        overlapStatus: existingEvent.overlapStatus || OverlapStatus.PRIMARY,
         scheduleUpdatedAt,
     } as EventAttributes;
 }
@@ -70,7 +70,7 @@ export function mapResponseToEventDTO(eventResponse: any, roomEmail: string): Ev
         ...mapCommonEventFields(eventResponse),
         roomEmail: roomEmail,
         checkInStatus: initialStatus,
-        overlapStatus: OverlapStatus.NONE,
+        overlapStatus: OverlapStatus.PRIMARY,
         scheduleUpdatedAt: null,
     } as EventCheckInDTO;
 }

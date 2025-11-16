@@ -66,7 +66,7 @@ Event.init(
         },
         overlapStatus: {
             type: DataTypes.ENUM(...Object.values(OverlapStatus)),
-            defaultValue: OverlapStatus.NONE,
+            defaultValue: OverlapStatus.PRIMARY,
             allowNull: false,
         },
         scheduleUpdatedAt: {

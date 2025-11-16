@@ -1,7 +1,6 @@
 export type ResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction';
 
 export enum OverlapStatus {
-  NONE = "NONE",
   PRIMARY = "PRIMARY",
   OVERLAPPED = "OVERLAPPED",
 }
