@@ -2,7 +2,7 @@ import { JobRemoto } from '../schedulers/cronSetup';
 import { google, Auth } from 'googleapis';
 import path from 'path';
 import { updateRoom, mapRoomResponseToRoomDTO, mapResponseToRoomResponseDTO } from '../utils/mappers/roomMapper';
-import RoomService from '../services/roomService';
+import roomService from '../services/roomService';
 export class SyncApiRoomResourcesJob implements JobRemoto {
     ADMIN_ACCOUNT_IMPERSONATE: string;
     SERVICE_ACCOUNT_FILE: string;
@@ -40,7 +40,7 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
             }
 
             const roomEmailsFromApi = roomResources.map(resource => resource.resourceEmail!);
-            const localRooms = await RoomService.getAllRooms();
+            const localRooms = await roomService.getAllRooms();
 
             // Marca como eliminadas las rooms que ya no están en la API (soft delete)
             for (const localRoom of localRooms) {
@@ -48,21 +48,21 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                     console.log(
                         `[SyncApiRoomResources] Room ${localRoom.email} eliminada de la API, marcando deletedAt...`
                     );
-                    await RoomService.softDeleteRoom(localRoom.email);
+                    await roomService.softDeleteRoom(localRoom.email);
                 }
             }
 
             for (const resource of roomResources) {
 
-                const roomModel = await RoomService.fetchRoom(resource.resourceEmail!);
+                const roomModel = await roomService.fetchRoom(resource.resourceEmail!);
 
                 if (roomModel) {
                     // Lógica para los recursos ya existentes en la DB
                     const updatedRoom = updateRoom(resource, roomModel);
-                    await RoomService.upsertRoom(updatedRoom);
+                    await roomService.upsertRoom(updatedRoom);
 
                     if (roomModel.deletedAt) {
-                        await RoomService.restoreRoom(resource.resourceEmail!);
+                        await roomService.restoreRoom(resource.resourceEmail!);
                         console.log(`[SyncApiRoomResources] Room ${resource.resourceEmail} restaurada`);
                     }
 
@@ -72,7 +72,7 @@ export class SyncApiRoomResourcesJob implements JobRemoto {
                     const roomDTO = mapRoomResponseToRoomDTO(roomResponseDTO);
 
                     if (roomDTO) {
-                        await RoomService.upsertRoom(roomDTO);
+                        await roomService.upsertRoom(roomDTO);
                     }
                 }
             }

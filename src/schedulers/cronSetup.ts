@@ -3,7 +3,7 @@ import { SyncApiRoomResourcesJob } from "../jobs/syncApiRoomResources";
 import { SyncLocalRoomResourcesJob } from "../jobs/syncLocalRoomResources";
 import cronScheduler from "./cronScheduler";
 
-//@TODO: Agregar variables en .env para los tiempos de los cron jobs (para un manejo sencillo)
+//@TODO: Agregar variables en .env para los tiempos de los cron jobs (para un manejo más sencillo)
 export const setupJobs = () => {
     const syncApiRoomResourcesJob = new SyncApiRoomResourcesJob();
     const syncCalendarEvents = new SyncCalendarEventsJob();
