@@ -137,8 +137,8 @@ class LocalStatusService {
                 if (newStatus === CheckInStatus.EXPIRED) {
                     // @LOG
                     console.log(
-                        `[CheckInService] CheckIn expirado del evento ` +
-                        `${event.title}`
+                        `[CheckInService] CheckIn expirado del evento ${event.id}` +
+                        `\nen sala (${room.email})`
                     );
                 }
             }

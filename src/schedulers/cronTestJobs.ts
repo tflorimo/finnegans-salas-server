@@ -1,5 +1,6 @@
 import { SyncCalendarEventsJob } from '../jobs/syncCalendarEvents';
 
+// @TODO: Este archivo se podría eliminar.
 (async () => {
   try {
     const job = new SyncCalendarEventsJob();

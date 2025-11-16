@@ -10,13 +10,13 @@ export interface ScheduleConfig {
 
 class CronScheduler {
     private jobs: Map<string, cron.ScheduledTask> = new Map();
-    
+
     schedule(config: ScheduleConfig) {
         if (!config.enabled) {
             console.log(formatOfflineLog(config.name));
             return;
         }
-        
+
         const task = cron.schedule(config.cronExpression, async () => {
             console.log(formatStartLog(config.name));
 
@@ -29,12 +29,12 @@ class CronScheduler {
                 console.error(`[ERROR] ${config.name}:`, error);
             }
         });
-        
+
         this.jobs.set(config.name, task);
         task.start();
         console.log(formatCronLog(config.name, config.cronExpression));
     }
-    
+
     stopAll() {
         this.jobs.forEach((job, name) => {
             job.stop();

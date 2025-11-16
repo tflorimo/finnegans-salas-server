@@ -13,12 +13,14 @@ async function iniciarServidor() {
 		await sequelize.authenticate();
 		console.log(formatInitLog("MySQL conectado"));
 
+		// @TODO luego de la creación de las tablas, comentar para producción 
 		// { alter: true } crea o actualiza las tablas según los modelos
 		await sequelize.sync({ alter: false });
 
 		app.listen(PORT, () => {
 			console.log(formatInitLog("Server iniciado con base de datos"));
 			console.log(formatInitLog(`API disponible en: http://localhost:${PORT}`));
+			console.log(`===========================  RUNTIME LOGS  ===========================`);
 		});
 
 		setupJobs();
