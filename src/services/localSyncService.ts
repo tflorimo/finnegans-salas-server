@@ -4,12 +4,13 @@ import eventService from "./eventService";
 import roomService from "./roomService";
 import currentEventService from "./currentEventService";
 import checkInService from "./checkInService";
+import overlapService from "./overlapService";
 
 //Servicio para gestión de estados de salas y limpieza automática
 class LocalStatusService {
 
-    // Método principal para limpieza y actualización de estados de salas
-    async cleanupRoomStatuses(): Promise<number> {
+    // Método principal para limpieza y actualización de estados de salas y eventos
+    async cleanupLocalStatuses(): Promise<number> {
         const rooms = await roomService.getAllRoomModels();
         const now = new Date();
         let changesCount = 0;
@@ -19,7 +20,13 @@ class LocalStatusService {
                 const changes = await this.processLocalStatus(room, now);
                 changesCount += changes;
             } catch (error) {
-                console.error(`[LocalStatusService] Error en sala ${room.email}:`, error);
+                console.error(
+                    `► [LocalStatusService] error en sala:` +
+                    `\n  id sala: ${room.email}` +
+                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
+                    `\n  detalle del error:`,
+                    error
+                );
             }
         }
 
@@ -29,23 +36,37 @@ class LocalStatusService {
     private async processLocalStatus(room: Room, now: Date): Promise<number> {
         let changes = 0;
         let currentEventId = roomService.getCurrentEventId(room);
-        const primaryEventId = await currentEventService.findActiveEvent(room.email, now);
+        const activeEvents = await currentEventService.findActiveEvents(room.email, now);
+        const primaryEventId = activeEvents?.primaryEvent ? activeEvents.primaryEvent.id : null;
+        const eventChanged = primaryEventId ? await eventService.getEventById(primaryEventId) : null;
+
+        // Testea la superposición de eventos. Este método actualizará los estados de superposición.
+        await overlapService.handleOverlappingEvents(activeEvents?.activeEvents, activeEvents?.primaryEvent);
 
         // Procesamiento de los estados de check-in de los eventos asociados a la sala
-        await this.processCheckInEventStatuses(room);
+        await checkInService.processCheckInEventStatuses(room);
 
         if (!primaryEventId && currentEventId) {
             const cleared = await roomService.clearRoom(room.email);
 
             if (cleared) {
+                // @LOG
                 console.log(
-                    `[LocalStatusService] ${room.name}: sin eventos activos → currentEvent limpiado (${currentEventId})`
+                    `► [LocalStatusService] sala sin eventos activos:` +
+                    `\n  id sala: ${room.email}` +
+                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
+                    `\n  currentEvent limpiado:` +
+                    `\n  id evento limpiado: ${currentEventId}`
                 );
+
                 changes++;
 
             } else {
                 console.log(
-                    `[LocalStatusService] ${room.name}: sin eventos activos → pero currentEvent ya estaba limpio`
+                    `► [LocalStatusService] sala sin eventos activos:` +
+                    `\n  id sala: ${room.email}` +
+                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
+                    `\n  estado: currentEvent ya estaba limpio`
                 );
             }
 
@@ -59,12 +80,16 @@ class LocalStatusService {
 
             if (updated) {
                 console.log(
-                    `[LocalStatusService] ${room.name}: currentEvent actualizado a ${primaryEventId}`
+                    `► [LocalStatusService] currentEvent actualizado:` +
+                    `\n  id sala: ${room.email}` +
+                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
+                    `\n  Nuevo currentEvent:` +
+                    `\n  id evento: ${primaryEventId}` +
+                    `\n  nombre evento: ${eventChanged?.title || "Sin nombre"}`
                 );
+
                 changes++;
                 currentEventChanged = true;
-
-                await roomService.reloadRoom(room);
                 currentEventId = primaryEventId;
             }
         }
@@ -100,50 +125,29 @@ class LocalStatusService {
             if (shouldBeBusy) {
                 // @LOG
                 console.log(
-                    `[LocalStatusService] ${room.name}: is_busy=true `
-                    + `(sala ocupada - checkInStatus=CHECKED_IN, evento en curso)`
+                    `► [LocalStatusService] sala ocupada:` +
+                    `\n  id sala: ${room.email}` +
+                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
+                    `\n  estado sala: is_busy=true` +
+                    `\n  El evento se encuentra en curso` +
+                    `\n  id evento: ${primaryEventId}` +
+                    `\n  nombre evento: ${eventChanged?.title || "Sin nombre"}` +
+                    `\n  checkInStatus=${eventChanged?.checkInStatus || "Desconocido"}`
                 );
 
             } else {
                 if (!primaryEventId) {
                     console.log(
-                        `[LocalStatusService] ${room.name}: is_busy=false (sin eventos activos)`
-                    );
-                } else {
-                    // @LOG
-                    console.log(
-                        `[LocalStatusService] ${room.name}: is_busy=false (evento sin check-in o fuera de horario)`
+                        `► [LocalStatusService] sala sin eventos activos:` +
+                        `\n  id: ${room.email}` +
+                        `\n  nombre: ${room.name || "Sin nombre"}` +
+                        `\n  estado: is_busy=false`
                     );
                 }
             }
         }
 
         return changes;
-    }
-
-    private async processCheckInEventStatuses(room: Room): Promise<void> {
-        const events = await eventService.getEventsByRoomId(room.email);
-
-        for (const event of events) {
-            const newStatus = checkInService.determineCheckInStatus(
-                event.startTime,
-                event.endTime,
-                event.checkInStatus
-            );
-
-            if (newStatus !== event.checkInStatus) {
-                await eventService.updateEventCheckInStatus(event.id, newStatus);
-
-                if (newStatus === CheckInStatus.EXPIRED) {
-                    // @LOG
-                    console.log(
-                        `[CheckInService] CheckIn expirado del evento ${event.id}` +
-                        `\nen sala (${room.email})`
-                    );
-                }
-            }
-
-        }
     }
 }
 
