@@ -49,10 +49,6 @@ class AuthService {
     const frontendURL = process.env.FRONTEND_URL!;
     const queryParams = new URLSearchParams({
       success: "true",
-      token: accessToken,
-      email: user.email,
-      name: user.name ?? "",
-      role,
     });
 
     return {
