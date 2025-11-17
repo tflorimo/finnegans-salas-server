@@ -2,7 +2,7 @@ import { google, Auth } from 'googleapis';
 import path from 'path';
 import roomService from '../services/roomService';
 import eventService from '../services/eventService';
-import { mapResponseToEventDTO, updateEvent } from '../utils/mappers/eventMapper';
+import { mapResponseToEventDTO, mapUpdatedEvent } from '../utils/mappers/eventMapper';
 import { getCalendarSyncRange } from '../utils/dateUtils';
 import checkInService from './checkInService';
 
@@ -91,7 +91,7 @@ class CalendarSyncService {
                     const eventSearched = await eventService.getEventById(event.id!);
 
                     if (eventSearched) {
-                        const updatedEvent = updateEvent(event, eventSearched);
+                        const updatedEvent = mapUpdatedEvent(event, eventSearched);
 
                         updatedEvent.checkInStatus = eventSearched.checkInStatus;
                         updatedEvent.overlapStatus = eventSearched.overlapStatus;
