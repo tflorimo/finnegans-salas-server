@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwtService from "../services/jwtService";
+import userService from "../services/userService";
 
 type AuthenticatedRequest = Request & {
   user?: {
@@ -9,7 +10,7 @@ type AuthenticatedRequest = Request & {
   };
 };
 
-export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const authHeader = req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ code: "no_token" });
@@ -18,9 +19,24 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
 
   try {
     const token = authHeader.slice("Bearer ".length);
-    const user = jwtService.verifyAccess(token);
+    const payload = jwtService.verifyAccess(token);
 
-    (req as AuthenticatedRequest).user = user;
+    // Validar que el usuario exista en la DB
+    const user = await userService.validateUserForAuth(payload.id);
+
+    if (!user) {
+      console.log(`► [Auth Middleware] Usuario id ${payload.id} rechazado (no existe en DB)`);
+      res.status(401).json({ code: "user_invalid" });
+      return;
+    }
+
+    // Usar datos frescos de la DB (especialmente el role)
+    (req as AuthenticatedRequest).user = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
     next();
   } catch (error) {
     if (error instanceof Error) {
