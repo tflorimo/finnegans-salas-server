@@ -48,21 +48,57 @@ class UserService {
   }
 
   async upsertUser(userBase: UserBase): Promise<UserAttributes> {
-    const [user] = await User.upsert(
-      {
-        email: userBase.email,
-        name: userBase.name,
-        role: userBase.role,
-      },
-      { returning: true }
+    const existingUser = await User.findOne({
+      where: { email: userBase.email }
+    });
+
+    if (existingUser) {
+      const needsUpdate =
+        existingUser.name !== userBase.name ||
+        existingUser.role !== userBase.role;
+
+      if (needsUpdate) {
+        await existingUser.update({
+          name: userBase.name,
+          role: userBase.role,
+        });
+
+        console.log(
+          `► [UserService] Usuario actualizado: ` +
+          `\n  id: ${existingUser.id}` +
+          `\n  email: ${existingUser.email}` +
+          `\n  nombre: ${existingUser.name}` +
+          `\n  rol: ${existingUser.role}`
+        );
+      }
+
+      return {
+        id: existingUser.id,
+        email: existingUser.email,
+        name: existingUser.name,
+        role: existingUser.role,
+      };
+    }
+
+    const newUser = await User.create({
+      email: userBase.email,
+      name: userBase.name,
+      role: userBase.role,
+    });
+
+    console.log(
+      `► [UserService] Usuario creado con éxito: ` +
+      `\n  id: ${newUser.id}` +
+      `\n  email: ${newUser.email}` +
+      `\n  nombre: ${newUser.name}` +
+      `\n  rol: ${newUser.role}`
     );
 
-    const plainUser = user.get({ plain: true }) as UserAttributes;
     return {
-      id: plainUser.id,
-      email: plainUser.email,
-      name: plainUser.name,
-      role: plainUser.role,
+      id: newUser.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
     };
   }
 
@@ -72,6 +108,23 @@ class UserService {
       .map((e) => e.trim())
       .filter(Boolean);
     return admins.includes(email) ? "admin" : "user";
+  }
+
+  async validateUserForAuth(userId: number): Promise<UserAttributes | null> {
+    
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      console.log(`[UserService][validateUserForAuth][ERROR] usuario id ${userId} no encontrado en DB`);
+      return null;
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    };
   }
 }
 
