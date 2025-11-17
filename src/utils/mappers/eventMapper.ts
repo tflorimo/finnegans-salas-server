@@ -33,7 +33,7 @@ function mapCommonEventFields(eventResponse: any): Partial<EventAttributes> {
 
 // Actualiza un evento existente con datos de Google Calendar, preservando checkInStatus y overlapStatus,
 // y actualizando scheduleUpdatedAt solo si cambió el horario
-export function updateEvent(eventResponse: any, existingEvent: Event): EventAttributes {
+export function mapUpdatedEvent(eventResponse: any, existingEvent: Event): EventAttributes {
     const commonFields = mapCommonEventFields(eventResponse);
 
     const newStartTime = commonFields.startTime ?? existingEvent.startTime;
