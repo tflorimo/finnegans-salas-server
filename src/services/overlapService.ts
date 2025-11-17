@@ -11,7 +11,11 @@ class OverlapService {
     }
 
     // Método derivado de la lógica de CurrentEventService, para manejar eventos superpuestos
-    async handleOverlappingEvents(primaryEvent: Event, activeEvents: Event[]) {
+    async handleOverlappingEvents(activeEvents: Event[] | undefined, primaryEvent: Event | undefined) {
+        if (!primaryEvent || !activeEvents) {
+            return;
+        }
+
         const primaryWasModified = this.wasEventTimeModified(primaryEvent);
 
         for (const event of activeEvents) {
@@ -27,8 +31,14 @@ class OverlapService {
                         const reason = !primaryWasModified ? '[OVERLAP]' : '[MODIFICADO]';
                         // @LOG
                         console.log(
-                            `[OverlapService] Evento ${event.id} marcado como superpuesto ` +
-                            `\n${reason}. Evento Primario: ${primaryEvent.id}`
+                            `► [OverlapService] evento marcado como SUPERPUESTO:` +
+                            `\n► Evento SUPERPUESTO:` +
+                            `\n   id: ${event.id}` +
+                            `\n   nombre: ${event.title || "Sin nombre"}` +
+                            `\n► Evento PRIMARIO (causante del overlap):` +
+                            `\n   id: ${primaryEvent.id}` +
+                            `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
+                            `\nMotivo: ${reason}`
                         );
                     }
 
@@ -36,8 +46,15 @@ class OverlapService {
                     await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
                     // @LOG
                     console.log(
-                        `[OverlapService] Evento ${event.id} ` +
-                        `(no modificado) mantiene prioridad sobre primario modificado ${primaryEvent.id}`
+                        `► [OverlapService] resolución de prioridad entre eventos:` +
+                        `\n► Evento SUPERPUESTO (mantiene prioridad):` +
+                        `\n   id: ${event.id}` +
+                        `\n   nombre: ${event.title || "Sin nombre"}` +
+                        `\n   estado: no modificado` +
+                        `\n► Evento PRIMARIO (modificado):` +
+                        `\n   id: ${primaryEvent.id}` +
+                        `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
+                        `\n   motivo: el superpuesto no fue modificado y conserva prioridad`
                     );
                 }
             }
