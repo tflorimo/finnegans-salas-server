@@ -1,8 +1,8 @@
 import { EventDTOResponse } from "../../dtos/eventDTO";
-import { RoomCreateDTO, RoomDTO, RoomRequestDTO, RoomResponseDTO } from "../../dtos/roomDTO";
+import { RoomCreateDTO, RoomDTO, RoomResponseDTO, RoomRequestDTO } from "../../dtos/roomDTO";
 import { Room } from "../../models";
 
-function extractFeatures(dto: RoomResponseDTO | any): string[] {
+function extractFeatures(dto: RoomRequestDTO | any): string[] {
     const emptyFeaturesInstance = new Array<string>();
 
     if (!dto.featureInstances) return emptyFeaturesInstance;
@@ -54,7 +54,7 @@ export function updateRoomMapper(
 }
 
 // Mapea una room nueva desde Google Admin SDK API a RoomDTO
-export function mapRoomResponseToRoomDTO(roomResponse: RoomResponseDTO): RoomDTO | null {
+export function mapRoomResponseToRoomDTO(roomResponse: RoomRequestDTO): RoomDTO | null {
     if (!roomResponse.resourceEmail) return null;
 
     const features = extractFeatures(roomResponse);
@@ -64,8 +64,8 @@ export function mapRoomResponseToRoomDTO(roomResponse: RoomResponseDTO): RoomDTO
         is_busy: false,
     } as RoomDTO;
 }
-// Normaliza la respuesta de Google Admin SDK a RoomResponseDTO
-export function mapResponseToRoomResponseDTO(roomResponse: any): RoomResponseDTO {
+// Normaliza la respuesta de Google Admin SDK a RoomRequestDTO
+export function mapResponseToRoomRequestDTO(roomResponse: any): RoomRequestDTO {
     return {
         resourceEmail: roomResponse.resourceEmail || '',
         resourceName: roomResponse.resourceName || '',
@@ -77,9 +77,9 @@ export function mapResponseToRoomResponseDTO(roomResponse: any): RoomResponseDTO
     };
 }
 
-// Mapea un Room del modelo a RoomRequestDTO para enviar al frontend
+// Mapea un Room del modelo a RoomResponseDTO para enviar al frontend
 export function mapRoomToRequestDTO(room: Room, currentEvent: EventDTOResponse | null,
-    events: EventDTOResponse[]): RoomRequestDTO {
+    events: EventDTOResponse[]): RoomResponseDTO {
     return {
         email: room.email,
         name: room.name,
