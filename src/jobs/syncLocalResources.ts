@@ -5,7 +5,7 @@ import localStatusService from "../services/localSyncService";
 export class SyncLocalResourcesJob implements JobLocal {
     async execute(): Promise<void> {
         try {
-            const changesCount = await localStatusService.cleanupRoomStatuses();
+            const changesCount = await localStatusService.cleanupLocalStatuses();
 
             if (changesCount > 0) {
                 console.log(
