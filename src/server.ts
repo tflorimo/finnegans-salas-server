@@ -2,7 +2,7 @@ import app from './app';
 import dotenv from 'dotenv';
 import sequelize from './config/database';
 import { setupJobs } from './schedulers/cronSetup';
-import { formatInitLog } from './utils/dateUtils';
+import { formatInitLog } from './utils/logUtils';
 
 dotenv.config();
 
