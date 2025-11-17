@@ -6,6 +6,7 @@ import {
   refreshCookieName,
   setRefreshCookie,
   clearRefreshCookie,
+  setTempAccessCookie,
 } from "../config/authCookies";
 import { isOAuthAccessDeniedError } from "../config/oAuthAccess";
 import { buildFrontendCallbackUrl } from "../utils/frontendRedirect";
@@ -28,11 +29,21 @@ class AuthController {
     }
 
     try {
-      const { refreshToken, redirectUrl } = await authService.processOAuthCallback(code);
+      const { accessToken, refreshToken, redirectUrl } = await authService.processOAuthCallback(code);
+
       setRefreshCookie(res, refreshToken);
+      setTempAccessCookie(res, accessToken);
+
       res.redirect(302, redirectUrl);
     } catch (error) {
       if (isOAuthAccessDeniedError(error)) {
+        console.warn(
+          `[AuthController] ⚠️  Intento de inicio de sesión rechazado\n` +
+          `  Razón: ${error.reason}\n` +
+          `  Email: ${req.query.email || 'desconocido'}\n` +
+          `  Timestamp: ${new Date().toISOString()}`
+        );
+
         const redirectUrl = buildFrontendCallbackUrl({
           success: "false",
           message: error.reason,
