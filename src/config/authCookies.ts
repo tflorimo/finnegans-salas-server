@@ -27,3 +27,17 @@ export const setRefreshCookie = (res: Response, token: string): void => {
 export const clearRefreshCookie = (res: Response): void => {
   res.clearCookie(refreshCookieName, refreshCookieClearOptions);
 };
+
+// Cookie temporal para transferir accessToken de forma segura (sin URL)
+export const tempAccessCookieName = "tempAccessToken";
+export const tempAccessCookieOptions: CookieOptions = {
+  httpOnly: false, 
+  secure: isProd,
+  sameSite: isProd ? "none" : "lax",
+  maxAge: 60 * 1000, // 1 minuto
+  path: "/auth/callback",
+};
+
+export const setTempAccessCookie = (res: Response, token: string): void => {
+  res.cookie(tempAccessCookieName, token, tempAccessCookieOptions);
+};
