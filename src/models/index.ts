@@ -1,8 +1,9 @@
 import { Room } from "./room";
 import { Event } from "./event";
 import { User } from "./user";
+import { Forecast } from "./forecast"
 import { asociacionesModelos } from "./assoc";
 
 asociacionesModelos();
 
-export { Room, Event, User };
+export { Room, Event, User, Forecast };
