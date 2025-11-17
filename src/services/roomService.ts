@@ -1,5 +1,5 @@
 import { Room, Event } from "../models";
-import { RoomRequestDTO, RoomDTO } from "../dtos/roomDTO";
+import { RoomResponseDTO, RoomDTO } from "../dtos/roomDTO";
 import { EventDTOResponse } from "../dtos/eventDTO";
 import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
@@ -8,7 +8,7 @@ import userService from "./userService";
 import currentEventService from "./currentEventService";
 class RoomService {
 
-    async getAllRooms(): Promise<RoomRequestDTO[]> {
+    async getAllRooms(): Promise<RoomResponseDTO[]> {
         const rooms = await Room.findAll();
         const currentEventIds = rooms
             .map(room => room.get('current_event') as string | null)
@@ -28,7 +28,7 @@ class RoomService {
         );
     }
 
-    async getRoomById(id: string): Promise<RoomRequestDTO | null> {
+    async getRoomById(id: string): Promise<RoomResponseDTO | null> {
         const room = await Room.findByPk(id);
         if (!room) return null;
 
@@ -55,7 +55,7 @@ class RoomService {
         room: Room,
         eventMap: Map<string, Event>,
         creatorMap: Map<string, string>
-    ): Promise<RoomRequestDTO> {
+    ): Promise<RoomResponseDTO> {
         const currentEventId = room.get('current_event') as string | null;
         let currentEventDTO: EventDTOResponse | null = null;
 
@@ -68,8 +68,12 @@ class RoomService {
 
             } else {
                 console.warn(
-                    `[enrichRoomWithEvents] Evento ${event ? 'eliminado' : 'fantasma'} detectado ` +
-                    `en ${room.email}: ${currentEventId}`
+                    `► [enrichRoomWithEvents] evento inválido detectado:` +
+                    `\n  tipo: ${event ? "eliminado" : "fantasma"}` +
+                    `\n  id evento: ${currentEventId}` +
+                    `\n  nombre evento: ${event?.title || "Sin nombre"}` +
+                    `\n  id sala: ${room.email}` +
+                    `\n  nombre sala: ${room.name || "Sin nombre"}`
                 );
             }
         }
@@ -137,8 +141,13 @@ class RoomService {
             const event = await eventService.getEventById(eventId);
             if (!event || event.deletedAt) {
                 console.warn(
-                    `[RoomService] Intento de asignar evento ${eventId} ` +
-                    `${event ? 'eliminado' : 'inexistente'} como currentEvent de ${roomEmail}`
+                    `► [RoomService] intento de asignación inválida de currentEvent:` +
+                    `\n   id evento: ${eventId}` +
+                    `\n   nombre evento: ${event?.title || "Sin nombre"}` +
+                    `\n   estado evento: ${event ? "eliminado" : "inexistente"}` +
+                    `\n   para la sala:` +
+                    `\n   id sala: ${roomEmail}` +
+                    `\n   nombre sala: ${room?.name || "Sin nombre"}`
                 );
                 return false;
             }

@@ -1,7 +1,7 @@
 import { Room } from "./room";
 import { Event } from "./event";
-import { formatModelLog } from "../utils/dateUtils";
 import { Forecast } from "./forecast";
+import { formatModelLog } from "../utils/logUtils";
 
 export function asociacionesModelos() {
 

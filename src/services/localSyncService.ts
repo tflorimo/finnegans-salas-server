@@ -44,7 +44,7 @@ class LocalStatusService {
         await overlapService.handleOverlappingEvents(activeEvents?.activeEvents, activeEvents?.primaryEvent);
 
         // Procesamiento de los estados de check-in de los eventos asociados a la sala
-        await checkInService.processCheckInEventStatuses(room);
+        await checkInService.processCheckInEventsStatuses(room);
 
         if (!primaryEventId && currentEventId) {
             const cleared = await roomService.clearRoom(room.email);
