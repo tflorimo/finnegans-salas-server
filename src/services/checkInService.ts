@@ -233,7 +233,7 @@ class CheckInService {
         return { canCheckIn: true };
     }
 
-    async processCheckInEventStatuses(room: Room): Promise<void> {
+    async processCheckInEventsStatuses(room: Room): Promise<void> {
         const events = await eventService.getEventsByRoomId(room.email);
 
         for (const event of events) {

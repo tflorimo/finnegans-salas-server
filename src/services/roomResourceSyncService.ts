@@ -4,7 +4,7 @@ import roomService from '../services/roomService';
 import {
     updateRoomMapper,
     mapRoomResponseToRoomDTO,
-    mapResponseToRoomResponseDTO
+    mapResponseToRoomRequestDTO
 } from '../utils/mappers/roomMapper';
 
 /**
@@ -46,7 +46,10 @@ class RoomResourceSyncService {
 
             const roomResources = response.data.items || [];
             if (!roomResources.length) {
-                console.log('[RoomResourceSyncService] No se encontraron room resources.');
+                console.log(
+                    `► [RoomResourceSyncService] sin room resources:` +
+                    `\n  no se encontraron recursos de salas en la API`
+                );
                 return;
             }
 
@@ -58,7 +61,10 @@ class RoomResourceSyncService {
                 if (!roomEmailsFromApi.includes(localRoom.email)) {
                     // @LOG
                     console.log(
-                        `[RoomResourceSyncService] Room ${localRoom.email} eliminada de la API, marcando deletedAt...`
+                        `► [RoomResourceSyncService] sala eliminada de la API:` +
+                        `\n  id: ${localRoom.email}` +
+                        `\n  nombre: ${localRoom.name || "Sin nombre"}` +
+                        `\n  acción: marcando deletedAt...`
                     );
                     await roomService.softDeleteRoom(localRoom.email);
                 }
@@ -76,23 +82,34 @@ class RoomResourceSyncService {
                         await roomService.restoreRoom(resource.resourceEmail!);
                         // @LOG
                         console.log(
-                            `[RoomResourceSyncService] Room ${resource.resourceEmail} restaurada`
+                            `► [RoomResourceSyncService] sala restaurada:` +
+                            `\n  id: ${resource.resourceEmail}` +
+                            `\n  nombre: ${resource.resourceName || "Sin nombre"}`
                         );
                     }
-                    
+
                 } else {
                     // Recursos nuevos
-                    const roomResponseDTO = mapResponseToRoomResponseDTO(resource);
-                    const roomDTO = mapRoomResponseToRoomDTO(roomResponseDTO);
+                    const RoomRequestDTO = mapResponseToRoomRequestDTO(resource);
+                    const roomDTO = mapRoomResponseToRoomDTO(RoomRequestDTO);
 
                     if (roomDTO) {
                         await roomService.upsertRoom(roomDTO);
+                        console.log(
+                            `► [RoomResourceSyncService] sala agregada a la base de datos:` +
+                            `\n  id: ${resource.resourceEmail}` +
+                            `\n  nombre: ${resource.resourceName || "Sin nombre"}`
+                        );
                     }
                 }
             }
 
         } catch (error) {
-            console.error('[RoomResourceSyncService] Error al sincronizar room resources:', error);
+            console.error(
+                `► [RoomResourceSyncService] error al sincronizar room resources:` +
+                `\n  detalle del error:`,
+                error
+            );
         }
     }
 }

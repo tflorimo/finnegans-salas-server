@@ -1,5 +1,5 @@
 import * as cron from 'node-cron';
-import { formatDoneLog, formatOfflineLog, formatCronLog, formatStartLog } from '../utils/dateUtils';
+import { formatDoneLog, formatOfflineLog, formatCronLog, formatStartLog } from '../utils/logUtils';
 
 export interface ScheduleConfig {
     name: string;

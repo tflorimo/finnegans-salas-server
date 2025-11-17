@@ -67,7 +67,10 @@ class EventService {
 
         if (!hasRoomResource) {
             console.log(
-                `El evento con id "${event.id}" no tiene asistentes que sean salas, no se guardará.`
+                `► [EventService] evento sin asistentes válidos (salas):` +
+                `\n  id evento: ${event.id}` +
+                `\n  nombre evento: ${event.title || "Sin nombre"}` +
+                `\n  acción: no se guardará`
             );
             return;
         }
@@ -86,11 +89,10 @@ class EventService {
     async restoreEvent(eventId: string): Promise<void> {
         await Event.restore({ where: { id: eventId } });
         // @LOG
-        console.log(`[EventService] Evento ${eventId} restaurado`);
-    }
-
-    async reloadEvent(event: Event): Promise<void> {
-        await event.reload();
+        console.log(
+            `► [EventService] evento restaurado:` +
+            `\n  id evento: ${eventId}`
+        );
     }
 
     async updateEventCheckInStatus(eventId: string, status: CheckInStatus): Promise<void> {
@@ -129,11 +131,6 @@ class EventService {
         );
 
         return true;
-    }
-
-    private async getOverlapStatus(eventId: string): Promise<OverlapStatus | null> {
-        const event = await Event.findByPk(eventId);
-        return event ? event.overlapStatus : null;
     }
 
     getEventCheckInStatus(event: Event): CheckInStatus {
