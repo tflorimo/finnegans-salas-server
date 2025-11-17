@@ -1,8 +1,8 @@
 import checkInService from "../services/checkInService";
 import roomService from "../services/roomService";
 import { Request, Response } from "express"; 
+import { CHECK_IN_HTTP_STATUS } from "../constants/checkInErrors"; 
 class RoomController {
-
     async getAllRooms(req: Request, res: Response): Promise<void> {
         try {
             const rooms = await roomService.getAllRooms();
@@ -53,8 +53,13 @@ class RoomController {
             const resultado = await checkInService.checkInEvent(roomId, eventId, userEmail);
             
             if (!resultado.success) {
-                res.status(400).json({
-                    error: "[RoomController][checkIn] Hubo un error al intentar hacer check-in",
+                const statusCode = resultado.errorCode 
+                    ? CHECK_IN_HTTP_STATUS[resultado.errorCode]
+                    : 400;
+
+                res.status(statusCode).json({
+                    error: "[RoomController][checkIn]",
+                    code: resultado.errorCode,
                     message: resultado.message
                 });
                 return;
@@ -71,9 +76,7 @@ class RoomController {
                 message: error instanceof Error ? error.message : 'Error no conocido'
             });
         }
-
     }
-
 };
 
 export default new RoomController();
