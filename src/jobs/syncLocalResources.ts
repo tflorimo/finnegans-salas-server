@@ -1,11 +1,11 @@
 import { JobLocal } from "../schedulers/cronSetup";
-import localStatusService from "../services/localSyncService";
+import localStatusService from "../services/localStatusService";
 
 // Job local dedicado a limpiar y actualizar el estado de las salas según los eventos activos.
 export class SyncLocalResourcesJob implements JobLocal {
     async execute(): Promise<void> {
         try {
-            const changesCount = await localStatusService.cleanupRoomStatuses();
+            const changesCount = await localStatusService.cleanupLocalStatuses();
 
             if (changesCount > 0) {
                 console.log(

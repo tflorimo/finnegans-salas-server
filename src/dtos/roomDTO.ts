@@ -1,7 +1,7 @@
 import { EventDTOResponse } from "./eventDTO";
 
 // Respuesta de la API de Google Admin SDK
-export interface RoomResponseDTO {
+export interface RoomRequestDTO {
     resourceEmail: string;
     resourceName: string;
     capacity: number;
@@ -28,7 +28,7 @@ export interface RoomCreateDTO extends RoomDTO {
 }
 
 // Para Frontend
-export interface RoomRequestDTO extends RoomDTO {
+export interface RoomResponseDTO extends RoomDTO {
     current_event: EventDTOResponse | null;
     events: EventDTOResponse[];
 }

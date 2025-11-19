@@ -2,8 +2,8 @@ import { google, Auth } from 'googleapis';
 import path from 'path';
 import roomService from '../services/roomService';
 import eventService from '../services/eventService';
-import { mapResponseToEventDTO, updateEvent } from '../utils/mappers/eventMapper';
-import { getCalendarSyncRange } from '../utils/dateUtils';
+import { mapResponseToEventDTO, mapUpdatedEvent } from '../utils/mappers/eventMapper';
+import { getCalendarSyncRange, getLocalTimestamp } from '../utils/dateUtils';
 import checkInService from './checkInService';
 
 // Servicio encargado de sincronizar eventos de Google Calendar con la base local.
@@ -43,9 +43,8 @@ class CalendarSyncService {
                 typeof a.email === 'string'
         );
 
-        // Si tiene una o más salas como resource, tomamos la primera de la lista.
-        // Esto hace que, en escenarios de múltiples salas, la fuente de verdad sea el orden
-        // de los attendees y no el roomEmail previamente guardado
+        /* Si tiene una o más salas como resource, tomamos la primera de la lista.
+           Esto hace que, en escenarios de múltiples salas, la fuente de verdad sea el orden de los attendees. */
         if (roomAttendees.length > 0) {
             return roomAttendees[0].email as string;
         }
@@ -79,8 +78,12 @@ class CalendarSyncService {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
                         // @LOG
                         console.log(
-                            `[CalendarSyncService] Evento ${localEvent.id} ya no se encuentra` +
-                            `\nen el calendario de la sala ${email}, marcando deletedAt...`
+                            `► [CalendarSyncService] Evento` +
+                            `\n  id: ${localEvent.id}` +
+                            `\n  nombre: ${localEvent.title} ` +
+                            `\n  ya no se encuentra en el calendario de la sala` +
+                            `\n  id sala: ${email}` +
+                            `\n  acción: marcando como deletedAt`
                         );
                         await eventService.softDeleteEvent(localEvent.id);
                     }
@@ -91,7 +94,7 @@ class CalendarSyncService {
                     const eventSearched = await eventService.getEventById(event.id!);
 
                     if (eventSearched) {
-                        const updatedEvent = updateEvent(event, eventSearched);
+                        const updatedEvent = mapUpdatedEvent(event, eventSearched);
 
                         updatedEvent.checkInStatus = eventSearched.checkInStatus;
                         updatedEvent.overlapStatus = eventSearched.overlapStatus;
@@ -131,30 +134,49 @@ class CalendarSyncService {
                             hasRoomChange;
 
                         if (hasTimeChanges || hasChanges) {
-                            // Si cambió de sala, recalculamos el check-in ANTES del upsert
+                            // Si cambió de sala, recalculamos el check-in antes del upsert
                             if (hasRoomChange) {
-                                updatedEvent.checkInStatus = checkInService.determineCheckInStatus(
+                                const checkInStatus = checkInService.determineCheckInStatus(
                                     updatedEvent.startTime,
                                     updatedEvent.endTime
                                 );
-                            }
 
-                            await eventService.upsertEvent(updatedEvent);
+                                if (checkInStatus !== updatedEvent.checkInStatus) {
+                                    updatedEvent.checkInStatus = checkInStatus;
+                                }
 
-                            if (hasRoomChange) {
                                 // @LOG
                                 console.log(
-                                    `[CalendarSyncService] Evento ${event.id} ` +
-                                    `cambió de sala: \n${eventSearched.roomEmail} → ${newRoomEmail}`
+                                    `► [CalendarSyncService] Evento` +
+                                    `\n  id: ${event.id}` +
+                                    `\n  nombre: ${event.summary}` +
+                                    `\n► Cambió de sala:` +
+                                    `\n  id anterior: ${eventSearched.roomEmail}` +
+                                    `\n  id nuevo: ${newRoomEmail}`
                                 );
                             }
 
                             if (hasTimeChanges) {
-                                await eventService.updateScheduleUpdatedAt(
-                                    event.id!,
-                                    new Date()
+                                updatedEvent.scheduleUpdatedAt = new Date();
+                                console.log(
+                                    `► [CalendarSyncService] El evento` +
+                                    `\n  id: ${event.id}` +
+                                    `\n  nombre: ${event.summary}` +
+                                    `\n  cambió de horario:` +
+                                    `\n  ${getLocalTimestamp(eventSearched.startTime)}` +
+                                    ` → ${getLocalTimestamp(updatedEvent.startTime)}` +
+                                    `\n  ${getLocalTimestamp(eventSearched.endTime)}` +
+                                    ` → ${getLocalTimestamp(updatedEvent.endTime)}`
                                 );
                             }
+
+                            await eventService.upsertEvent(updatedEvent);
+                            console.log(
+                                `► [CalendarSyncService] Evento ` +
+                                `actualizado con éxito:` +
+                                `\n  id: ${updatedEvent.id}` +
+                                `\n  nombre: ${updatedEvent.title}`
+                            );
                         }
 
                         // Restaura solo si estaba eliminado y ahora existe en calendar
@@ -162,23 +184,36 @@ class CalendarSyncService {
                             await eventService.restoreEvent(event.id!);
                             // @LOG
                             console.log(
-                                `[CalendarSyncService] Evento ${event.id} restaurado ` +
-                                `\n(ahora en ${updatedEvent.roomEmail})`
+                                `► [CalendarSyncService] Evento restaurado: ` +
+                                `\n  id: ${event.id} ` +
+                                `\n  nombre: ${event.summary} ` +
+                                `\n  Ahora en la sala:` +
+                                `\n  id: ${newRoomEmail}`
                             );
                         }
 
                     } else {
-                        // Evento nuevo se mapea desde la respuesta de Google
+                        // Evento nuevo (no existente en la DB). Se mapea desde la respuesta de Google
                         const roomEmailForNewEvent = this.getRoomEmailFromEvent(event, email);
                         const eventDTO = mapResponseToEventDTO(event, roomEmailForNewEvent);
                         await eventService.upsertEvent(eventDTO);
+
+                        const roomForNewEvent = await roomService.getRoomById(roomEmailForNewEvent);
+                        console.log(
+                            `► [CalendarSyncService] Nuevo evento agregado con éxito:` +
+                            `\n  id evento: ${eventDTO.id}` +
+                            `\n  nombre evento: ${eventDTO.title}` +
+                            `\n  id sala: ${roomForNewEvent?.email || roomEmailForNewEvent}` +
+                            `\n  nombre sala: ${roomForNewEvent?.name || 'Desconocida'}`
+                        );
                     }
                 }
 
             } catch (error: any | string) {
                 console.error(
-                    `[CalendarSyncService] Error al obtener eventos para la sala "${email}":`,
-                    (error as any)?.message || error
+                    `► [CalendarSyncService] Error al obtener eventos:` +
+                    `\n  Sala: ${email}` +
+                    `\n  Detalle: ${(error as any)?.message || error}`
                 );
             }
         }

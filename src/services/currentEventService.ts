@@ -7,7 +7,7 @@ import { FIFTEEN_MINUTES_MS } from "./checkInService";
 // Servicio para determinar evento activo, filtrar y definir estado del evento en curso de una sala
 class CurrentEventService {
 
-    async findActiveEvent(roomEmail: string, now: Date): Promise<string | null> {
+    async findActiveEvents(roomEmail: string, now: Date): Promise<{primaryEvent: Event; activeEvents: Event[]} | null> {
         const allEvents = await eventService.getActiveEventsByRoomId(roomEmail);
 
         if (allEvents.length === 0) return null;
@@ -17,18 +17,13 @@ class CurrentEventService {
         if (activeEvents.length === 0) return null;
 
         if (activeEvents.length === 1) {
-            return activeEvents[0].id;
+            return { primaryEvent: activeEvents[0], activeEvents };
         }
 
         const sortedEvents = overlapService.evaluatePriority(activeEvents, now);
         const primaryEvent = sortedEvents[0];
 
-        /* Mientras suscede la sincronización local, se testea la superposición de eventos.
-           Este método actualizará los estados de superposición
-           En caso de que el currentEvent haya cambiado, se actualizarán los estados correspondientes */
-        // @TODO: Esto trae un alto acoplamiento entre servicios, revisar
-        await overlapService.handleOverlappingEvents(primaryEvent, activeEvents);
-        return primaryEvent.id;
+        return { primaryEvent, activeEvents };
     }
 
     // @TODO: podría ser un utils para no ir y venir de overlapService a currentEventService
