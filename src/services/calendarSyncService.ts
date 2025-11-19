@@ -83,7 +83,7 @@ class CalendarSyncService {
                             `\n  nombre: ${localEvent.title} ` +
                             `\n  ya no se encuentra en el calendario de la sala` +
                             `\n  id sala: ${email}` +
-                            `\n  marcando deletedAt...`
+                            `\n  acción: marcando como deletedAt`
                         );
                         await eventService.softDeleteEvent(localEvent.id);
                     }
@@ -213,7 +213,6 @@ class CalendarSyncService {
                 console.error(
                     `► [CalendarSyncService] Error al obtener eventos:` +
                     `\n  Sala: ${email}` +
-                    `\n  Causa: la sala fue eliminada de Google Calendar` +
                     `\n  Detalle: ${(error as any)?.message || error}`
                 );
             }
