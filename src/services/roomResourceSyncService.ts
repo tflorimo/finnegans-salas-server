@@ -64,7 +64,7 @@ class RoomResourceSyncService {
                         `► [RoomResourceSyncService] sala eliminada de la API:` +
                         `\n  id: ${localRoom.email}` +
                         `\n  nombre: ${localRoom.name || "Sin nombre"}` +
-                        `\n  acción: marcando deletedAt...`
+                        `\n  acción: marcando como deletedAt`
                     );
                     await roomService.softDeleteRoom(localRoom.email);
                 }
