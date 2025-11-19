@@ -1,4 +1,4 @@
-import { Room } from "../models";
+import { Room, Event } from "../models";
 import { CheckInStatus } from "../dtos/eventDTO";
 import eventService from "./eventService";
 import roomService from "./roomService";
@@ -35,10 +35,9 @@ class LocalStatusService {
 
     private async processLocalStatus(room: Room, now: Date): Promise<number> {
         let changes = 0;
-        let currentEventId = roomService.getCurrentEventId(room);
+        let originalCurrentEventId = roomService.getCurrentEventId(room);
         const activeEvents = await currentEventService.findActiveEvents(room.email, now);
-        const primaryEventId = activeEvents?.primaryEvent ? activeEvents.primaryEvent.id : null;
-        const eventChanged = primaryEventId ? await eventService.getEventById(primaryEventId) : null;
+        const newCurrentEventId = activeEvents?.primaryEvent ? activeEvents.primaryEvent.id : null;
 
         // Testea la superposición de eventos. Este método actualizará los estados de superposición.
         await overlapService.handleOverlappingEvents(activeEvents?.activeEvents, activeEvents?.primaryEvent);
@@ -46,71 +45,57 @@ class LocalStatusService {
         // Procesamiento de los estados de check-in de los eventos asociados a la sala
         await checkInService.processCheckInEventsStatuses(room);
 
-        if (!primaryEventId && currentEventId) {
-            const cleared = await roomService.clearRoom(room.email);
-
-            if (cleared) {
-                // @LOG
-                console.log(
-                    `► [LocalStatusService] sala sin eventos activos:` +
-                    `\n  id sala: ${room.email}` +
-                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
-                    `\n  currentEvent limpiado:` +
-                    `\n  id evento limpiado: ${currentEventId}`
-                );
-
-                changes++;
-
-            } else {
-                console.log(
-                    `► [LocalStatusService] sala sin eventos activos:` +
-                    `\n  id sala: ${room.email}` +
-                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
-                    `\n  estado: currentEvent ya estaba limpio`
-                );
-            }
-
-            currentEventId = null;
-        }
-
+        const eventChanged = newCurrentEventId ? await eventService.getEventById(newCurrentEventId) : null;
         let currentEventChanged = false;
 
-        if (primaryEventId && primaryEventId !== currentEventId) {
-            const updated = await roomService.updateRoomCurrentEvent(room.email, primaryEventId);
+        if (newCurrentEventId && newCurrentEventId !== originalCurrentEventId) {
+            const updated = await roomService.updateRoomCurrentEvent(room.email, newCurrentEventId);
 
             if (updated) {
                 console.log(
-                    `► [LocalStatusService] currentEvent actualizado:` +
+                    `► [LocalStatusService] Evento en curso actualizado:` +
                     `\n  id sala: ${room.email}` +
                     `\n  nombre sala: ${room.name || "Sin nombre"}` +
-                    `\n  Nuevo currentEvent:` +
-                    `\n  id evento: ${primaryEventId}` +
+                    `\n  Nuevo evento en curso:` +
+                    `\n  id evento: ${newCurrentEventId}` +
                     `\n  nombre evento: ${eventChanged?.title || "Sin nombre"}`
                 );
 
                 changes++;
                 currentEventChanged = true;
-                currentEventId = primaryEventId;
+                //currentEventId = newCurrentEventId;
             }
         }
 
         let shouldBeBusy = false;
 
-        if (primaryEventId) {
-            const event = await eventService.getEventById(primaryEventId);
+        if (newCurrentEventId) {
 
-            if (event) {
-                const isCheckedIn = event.checkInStatus === CheckInStatus.CHECKED_IN;
-                const eventStart = new Date(event.startTime).getTime();
-                const eventEnd = new Date(event.endTime).getTime();
-                const nowTime = now.getTime();
-                const isEventInProgress = nowTime >= eventStart && nowTime < eventEnd;
-
-                shouldBeBusy = isCheckedIn && isEventInProgress;
+            if (eventChanged) {
+                shouldBeBusy = this.shouldRoomBeBusy(eventChanged, now);
             }
 
         } else {
-            shouldBeBusy = false;
+
+            if (originalCurrentEventId) {
+                const cleared = await roomService.clearRoom(room.email);
+
+                if (cleared) {
+                    // @LOG
+                    console.log(
+                        `► [LocalStatusService] sala sin eventos activos:` +
+                        `\n  id sala: ${room.email}` +
+                        `\n  nombre sala: ${room.name || "Sin nombre"}` +
+                        `\n  estado sala: is_busy=false` +
+                        `\n  currentEvent limpiado:` +
+                        `\n  id evento: ${originalCurrentEventId}`
+                    );
+
+                    changes++;
+                }
+
+                originalCurrentEventId = null;
+            }
         }
 
         const currentBusyStatus = await roomService.getRoomBusyStatus(room.email);
@@ -130,24 +115,26 @@ class LocalStatusService {
                     `\n  nombre sala: ${room.name || "Sin nombre"}` +
                     `\n  estado sala: is_busy=true` +
                     `\n  El evento se encuentra en curso` +
-                    `\n  id evento: ${primaryEventId}` +
+                    `\n  id evento: ${newCurrentEventId}` +
                     `\n  nombre evento: ${eventChanged?.title || "Sin nombre"}` +
                     `\n  checkInStatus=${eventChanged?.checkInStatus || "Desconocido"}`
                 );
-
-            } else {
-                if (!primaryEventId) {
-                    console.log(
-                        `► [LocalStatusService] sala sin eventos activos:` +
-                        `\n  id: ${room.email}` +
-                        `\n  nombre: ${room.name || "Sin nombre"}` +
-                        `\n  estado: is_busy=false`
-                    );
-                }
             }
         }
 
         return changes;
+    }
+
+    private shouldRoomBeBusy(event: Event, now: Date): boolean {
+        const isCheckedIn = event.checkInStatus === CheckInStatus.CHECKED_IN;
+
+        const eventStart = new Date(event.startTime).getTime();
+        const eventEnd = new Date(event.endTime).getTime();
+        const nowTime = now.getTime();
+
+        const isEventInProgress = nowTime >= eventStart && nowTime < eventEnd;
+
+        return isCheckedIn && isEventInProgress;
     }
 }
 
