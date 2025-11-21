@@ -35,14 +35,17 @@ class OverlapService {
                             `\n► Evento SUPERPUESTO:` +
                             `\n   id: ${event.id}` +
                             `\n   nombre: ${event.title || "Sin nombre"}` +
-                            `\n► Evento PRIMARIO (causante del overlap):` +
+                            `\n► Evento PRIMARIO:` +
                             `\n   id: ${primaryEvent.id}` +
                             `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
-                            `\nMotivo: ${reason}`
+                            `\n   motivo: ${reason}`
                         );
                     }
+                }
 
-                } else {
+            } else {
+                
+                if (event.overlapStatus !== OverlapStatus.PRIMARY) {
                     await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
                     // @LOG
                     console.log(

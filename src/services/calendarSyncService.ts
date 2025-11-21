@@ -162,7 +162,7 @@ class CalendarSyncService {
                                         `► [CalendarSyncService] Evento` +
                                         `\n  id: ${event.id}` +
                                         `\n  nombre: ${event.summary}` +
-                                        `\n► Cambió de sala:` +
+                                        `\n  Cambió de sala:` +
                                         `\n  id anterior: ${eventSearched.roomEmail}` +
                                         `\n  id nuevo: ${newRoomEmail}`
                                     );
