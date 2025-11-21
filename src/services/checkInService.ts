@@ -183,15 +183,15 @@ class CheckInService {
         const now = Date.now();
         const isEventInProgress = this.isEventInProgress(startTime, endTime, now);
 
-        await roomService.updateRoomStatus(roomEmail, eventId, isEventInProgress);
-        const updatedEvent = await eventService.getEventById(eventId);
-
         console.log(
             `► [CheckInService] Check-in realizado con éxito:` +
             `\n  id evento: ${eventId}` +
             `\n  Realizado por: ${userEmail}` +
             `\n  acción: checkInStatus actualizado a CHECKED_IN`
         );
+
+        await roomService.updateRoomStatus(roomEmail, eventId, isEventInProgress);
+        const updatedEvent = await eventService.getEventById(eventId);
 
         return {
             success: true,

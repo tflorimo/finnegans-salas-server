@@ -163,9 +163,9 @@ class CalendarSyncService {
                                     `\n  id: ${event.id}` +
                                     `\n  nombre: ${event.summary}` +
                                     `\n  cambió de horario:` +
-                                    `\n  ${getLocalTimestamp(eventSearched.startTime)}` +
+                                    `\n  inicio: ${getLocalTimestamp(eventSearched.startTime)}` +
                                     ` → ${getLocalTimestamp(updatedEvent.startTime)}` +
-                                    `\n  ${getLocalTimestamp(eventSearched.endTime)}` +
+                                    `\n  fin: ${getLocalTimestamp(eventSearched.endTime)}` +
                                     ` → ${getLocalTimestamp(updatedEvent.endTime)}`
                                 );
                             }

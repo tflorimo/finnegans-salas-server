@@ -120,6 +120,16 @@ class RoomService {
                 is_busy: isBusy
             });
         }
+
+        if(isBusy) {
+            // @LOG
+            console.log(
+                `► [RoomService] sala actualizada a ocupada:` +
+                `\n  id sala: ${roomEmail}` +
+                `\n  estado sala: is_busy=true` +
+                `\n  id evento actual: ${currentEventId}`
+            );
+        }
     }
 
     async clearRoom(roomEmail: string): Promise<boolean> {
