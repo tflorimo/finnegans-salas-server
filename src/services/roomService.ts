@@ -114,14 +114,17 @@ class RoomService {
 
     async updateRoomStatus(roomEmail: string, currentEventId: string, isBusy: boolean): Promise<void> {
         const room = await Room.findOne({ where: { email: roomEmail } });
+
+        if(!room) return;
+        
         if (room) {
             await room.update({
-                current_event: currentEventId,
                 is_busy: isBusy
             });
         }
 
-        if(isBusy) {
+        if (isBusy) {
+            await this.updateRoomCurrentEvent(roomEmail, currentEventId);
             // @LOG
             console.log(
                 `► [RoomService] sala actualizada a ocupada:` +
@@ -160,6 +163,17 @@ class RoomService {
                     `\n   nombre sala: ${room?.name || "Sin nombre"}`
                 );
                 return false;
+            }
+
+            const started = await currentEventService.isCurrentEventStarted(eventId);
+            if (!started) {
+                console.log(
+                    `► [RoomService] currentEvent NO actualizado porque el evento aún no comenzó:` +
+                    `\n   sala: ${roomEmail}` +
+                    `\n   evento: ${eventId}` +
+                    `\n   startTime: ${event.startTime}`
+                );
+                return false; 
             }
         }
 

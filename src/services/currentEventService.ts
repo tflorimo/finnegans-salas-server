@@ -56,6 +56,14 @@ class CurrentEventService {
 
         return new Date(currentEvent.endTime).getTime() <= Date.now();
     }
+
+    async isCurrentEventStarted(currentEventId: string | null): Promise<boolean> {
+        if (!currentEventId) return false;
+        const currentEvent = await eventService.getEventById(currentEventId);
+        if (!currentEvent || currentEvent.deletedAt) return false;
+        
+        return new Date(currentEvent.startTime).getTime() <= Date.now();
+    }
 }
 
 export default new CurrentEventService();
