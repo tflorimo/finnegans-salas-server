@@ -34,10 +34,15 @@ class CheckInService {
 
     determineCheckInStatus(startTime: Date, endTime: Date, currentStatus?: CheckInStatus): CheckInStatus {
         const now = Date.now();
-        const { end, fifteenMinutesAfterStart } = this.getEventTimestamps(startTime, endTime);
+        const { end, fifteenMinutesAfterStart, tenMinutesBefore } = this.getEventTimestamps(startTime, endTime);
 
         if (currentStatus === CheckInStatus.CHECKED_IN) {
-            return CheckInStatus.CHECKED_IN;
+
+            if (now < tenMinutesBefore) {
+                return CheckInStatus.PENDING;
+            } else {
+                return CheckInStatus.CHECKED_IN;
+            }
         }
 
         if (now >= end || now > fifteenMinutesAfterStart) {
