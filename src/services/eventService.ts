@@ -117,17 +117,24 @@ class EventService {
         const event = await Event.findByPk(eventId);
         if (!event) return false;
 
-        // Si ya tiene ese mismo status, no hago nada
         if (event.overlapStatus === newStatus) {
             return false;
         }
 
-        await Event.update(
-            { overlapStatus: newStatus },
-            {
-                where: { id: eventId },
-                silent: true
-            }
+        const estadoAnterior = event.overlapStatus || "SIN_ESTADO";
+        event.overlapStatus = newStatus;
+
+        await event.save({ silent: true });
+
+        // @LOG
+        console.log(
+            `► [OverlapService] evento marcado como PRIMARIO:` +
+            `\n   Evento PRIMARIO (con prioridad de uso):` +
+            `\n   id: ${event.id}` +
+            `\n   nombre: ${event.title || "Sin nombre"}` +
+            `\n   estado anterior: ${estadoAnterior}` +
+            `\n   nuevo estado: ${event.overlapStatus}` +
+            `\n   motivo: resultado de evaluatePriority() y resolución de superposición`
         );
 
         return true;

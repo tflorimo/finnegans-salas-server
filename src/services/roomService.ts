@@ -168,7 +168,7 @@ class RoomService {
             const started = await currentEventService.isCurrentEventStarted(eventId);
             if (!started) {
                 console.log(
-                    `► [RoomService] currentEvent NO actualizado porque el evento aún no comenzó:` +
+                    `► [RoomService] currentEvent no actualizado porque el evento aún no comenzó:` +
                     `\n   sala: ${roomEmail}` +
                     `\n   evento: ${eventId}` +
                     `\n   startTime: ${event.startTime}`

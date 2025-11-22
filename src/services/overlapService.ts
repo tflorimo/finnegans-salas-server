@@ -22,7 +22,7 @@ class OverlapService {
             if (event.id !== primaryEvent.id) {
                 const areOverlapped = this.eventsOverlap(event.startTime, event.endTime, primaryEvent.startTime, primaryEvent.endTime);
                 const eventWasModified = this.wasEventTimeModified(event);
-                const shouldMarkAsOverlapped = !primaryWasModified || eventWasModified && areOverlapped;
+                const shouldMarkAsOverlapped = !primaryWasModified || (eventWasModified && areOverlapped);
 
                 if (shouldMarkAsOverlapped) {
                     const wasMarked = await eventService.setEventOverlapStatus(event.id, OverlapStatus.OVERLAPPED);
@@ -41,11 +41,7 @@ class OverlapService {
                             `\n   motivo: ${reason}`
                         );
                     }
-                }
-
-            } else {
-                
-                if (event.overlapStatus !== OverlapStatus.PRIMARY) {
+                } else {
                     await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
                     // @LOG
                     console.log(
@@ -59,6 +55,12 @@ class OverlapService {
                         `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
                         `\n   motivo: el superpuesto no fue modificado y conserva prioridad`
                     );
+                }
+
+            } else {
+
+                if (event.overlapStatus !== OverlapStatus.PRIMARY) {
+                    await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
                 }
             }
         }
