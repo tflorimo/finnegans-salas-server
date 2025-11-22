@@ -160,8 +160,9 @@ class CheckInService {
 
                 const now = Date.now();
                 const eventStart = new Date(event.startTime).getTime();
+                const {tenMinutesBefore} = this.getEventTimestamps(event.startTime, event.endTime)
 
-                if (now < eventStart) {
+                if (now < tenMinutesBefore) {
                     console.log(
                         `► [CheckInService] Evento con prioridad por overlap, ` +
                         `pero aún no comenzó, se habilitará el check-in` +
