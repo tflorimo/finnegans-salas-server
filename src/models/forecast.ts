@@ -46,9 +46,8 @@ Forecast.init(
     },
     {
         sequelize,
-        tableName: "room_forecasts",
+        tableName: "room_hourly_forecasts",
         timestamps: true,
-        paranoid: true,
         modelName: "Forecast",
         indexes: [
             { fields: ['roomEmail'] }
