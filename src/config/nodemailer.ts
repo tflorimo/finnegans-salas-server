@@ -1,57 +1,46 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import { google } from 'googleapis';
+import path from 'path';
 
-export interface EmailOAuth2Config {
-  service: string;
-  auth: {
-    type: 'OAuth2';
-    user: string;
-    clientId: string;
-    clientSecret: string;
-    refreshToken: string;
-  };
-}
+const SERVICE_ACCOUNT_FILE = path.join(__dirname, '../../auth/service_account_key.json');
+const ADMIN_ACCOUNT_IMPERSONATE = process.env.ADMIN_EMAIL_FOR_SERVICE_ACCOUNT!;
 
 class NodemailerConfig {
-  private emailConfig: EmailOAuth2Config;
-  private transporter: Transporter | null = null;
+  async getEmailTransporter(): Promise<Transporter> {
+    const auth = new google.auth.GoogleAuth({
+      keyFile: SERVICE_ACCOUNT_FILE,
+      scopes: ['https://www.googleapis.com/auth/gmail.send'],
+      clientOptions: {
+        subject: ADMIN_ACCOUNT_IMPERSONATE,
+      },
+    });
 
-  constructor() {
-    this.emailConfig = {
+    const client = await auth.getClient();
+    const accessToken = await client.getAccessToken();
+
+    if(!accessToken) {
+      throw new Error('No se pudo generar el Access Token para enviar correos.');
+    }
+
+    const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         type: 'OAuth2',
-        user: process.env.EMAIL_USER || '',
+        user: ADMIN_ACCOUNT_IMPERSONATE,
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-        refreshToken: process.env.GOOGLE_REFRESH_TOKEN || '',
+        accessToken: accessToken.token || ''
       },
-    };
-  }
+    } as nodemailer.TransportOptions);
 
-  getEmailTransporter(): Transporter {
-    if (!this.transporter) {
-      if (
-        !this.emailConfig.auth.user ||
-        !this.emailConfig.auth.clientId ||
-        !this.emailConfig.auth.clientSecret ||
-        !this.emailConfig.auth.refreshToken
-      ) {
-        throw new Error(
-          'Configuración de correo incompleta.\n' +
-            'Verifica EMAIL_USER, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y GOOGLE_REFRESH_TOKEN en .env'
-        );
-      }
-
-      this.transporter = nodemailer.createTransport(this.emailConfig);
-    }
-
-    return this.transporter;
+    return transporter;
   }
 
   async verifyEmailConnection(): Promise<boolean> {
     try {
-      const transporter = this.getEmailTransporter();
+      const transporter = await this.getEmailTransporter();
       await transporter.verify();
+      console.log('[NodemailerConfig] Conexión SMTP verificada correctamente.');
       return true;
     } catch (error) {
       console.error('[NodemailerConfig] Error al verificar conexión SMTP:', error);
@@ -64,4 +53,4 @@ const nodemailerConfig = new NodemailerConfig();
 
 export const getEmailTransporter = () => nodemailerConfig.getEmailTransporter();
 export const verifyEmailConnection = () => nodemailerConfig.verifyEmailConnection();
-export const EMAIL_FROM = process.env.EMAIL_FROM || process.env.EMAIL_USER || '';
+export const EMAIL_FROM = ADMIN_ACCOUNT_IMPERSONATE;

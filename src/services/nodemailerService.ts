@@ -55,7 +55,7 @@ export class NodemailerService {
 
   private async sendEmail(options: SendEmailOptions): Promise<boolean> {
     try {
-      const transporter = getEmailTransporter();
+      const transporter = await getEmailTransporter();
       await transporter.sendMail({
         from: EMAIL_FROM,
         to: options.to,
