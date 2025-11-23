@@ -10,6 +10,8 @@ import {
 } from "../config/authCookies";
 import { isOAuthAccessDeniedError } from "../config/oAuthAccess";
 import { buildFrontendCallbackUrl } from "../utils/frontendRedirect";
+import { auditService } from "../services/auditService";
+
 
 class AuthController {
   authRedirect = (_: Request, res: Response): void => {
@@ -34,6 +36,11 @@ class AuthController {
       setRefreshCookie(res, refreshToken);
       setTempAccessCookie(res, accessToken);
 
+
+      const decoded = jwtService.decodeToken(accessToken);
+      const email = decoded?.email as string | undefined;
+      await auditService.recordLogin(email ?? null).catch(() => { });
+
       res.redirect(302, redirectUrl);
     } catch (error) {
       if (isOAuthAccessDeniedError(error)) {
@@ -48,6 +55,12 @@ class AuthController {
           success: "false",
           message: error.reason,
         });
+
+        await auditService.recordLoginFailed(                   // registro en auditoría inicio fallido (acceso denegado)
+          (req.query.email as string) ?? null,
+          (error as any).reason ?? 'LOGIN_FAILED_ACCESS_DENIED'
+        ).catch(() => { });
+
         res.redirect(302, redirectUrl);
         return;
       }
@@ -56,6 +69,10 @@ class AuthController {
         success: "false",
         message: "oauth_failed",
       });
+
+      // registro en auditoría fallo general de oauth
+
+      await auditService.recordLoginFailed((req.query.email as string) ?? null, 'LOGIN_FAILED_OAUTH_FAILED').catch(() => { });
       res.redirect(302, redirectUrl);
     }
   };
@@ -92,10 +109,16 @@ class AuthController {
     }
   };
 
-  logout = (_: Request, res: Response): void => {
+  logout = async (req: Request, res: Response): Promise<void> => {
+    const email = jwtService.decodeToken(req.cookies?.temp_access)?.email ?? null;
+
+    //audit de logout guardado
+    await auditService.recordLogout(email).catch(() => { });
+
     clearRefreshCookie(res);
     res.status(204).send();
   };
+
 }
 
 export default new AuthController();

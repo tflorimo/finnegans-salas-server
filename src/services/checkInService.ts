@@ -2,6 +2,7 @@ import { CheckInStatus } from "../dtos/eventDTO";
 import roomService from "./roomService";
 import eventService from "./eventService";
 import overlapService from "./overlapService";
+import { auditService } from './auditService';
 import {
     CheckInErrorCode,
     CHECK_IN_ERROR_MESSAGES,
@@ -53,9 +54,15 @@ class CheckInService {
         userEmail: string
     ): Promise<CheckInResult> {
 
+        // setea auditEventId si es posible
+        let auditEventId: number | null = Number.isFinite(Number(eventId)) ? Number(eventId) : null;
+
         const currentRoom = await roomService.fetchRoom(roomEmail);
 
         if (!currentRoom) {
+
+            //Auditoria de checkin fallido - sala no encontrada
+            await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.ROOM_NOT_FOUND)).catch(() => { });
             return {
                 success: false,
                 errorCode: CheckInErrorCode.ROOM_NOT_FOUND,
@@ -66,6 +73,9 @@ class CheckInService {
         const event = await eventService.getEventById(eventId);
 
         if (!event) {
+
+            //Auditoria de checkin fallido - evento no encontrado
+            await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.EVENT_NOT_FOUND)).catch(() => { });
             return {
                 success: false,
                 errorCode: CheckInErrorCode.EVENT_NOT_FOUND,
@@ -73,7 +83,17 @@ class CheckInService {
             };
         }
 
+        // setea auditEventId si es posible
+        if (event && typeof (event as any).id !== 'undefined') {
+            const maybeId = (event as any).id;
+            const asNum = typeof maybeId === 'number' ? maybeId : Number(maybeId);
+            auditEventId = Number.isFinite(asNum) ? asNum : auditEventId;
+        }
+
         if (event.deletedAt) {
+
+            //Auditoria de checkin fallido - evento eliminado
+            await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.EVENT_DELETED)).catch(() => { });
             return {
                 success: false,
                 errorCode: CheckInErrorCode.EVENT_DELETED,
@@ -82,6 +102,9 @@ class CheckInService {
         }
 
         if (event.roomEmail !== roomEmail) {
+
+            //Auditoria de checkin fallido - evento en sala incorrecta
+            await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.EVENT_WRONG_ROOM)).catch(() => { });
             return {
                 success: false,
                 errorCode: CheckInErrorCode.EVENT_WRONG_ROOM,
@@ -92,6 +115,9 @@ class CheckInService {
         const checkInStatus = eventService.getEventCheckInStatus(event);
 
         if (checkInStatus === CheckInStatus.CHECKED_IN) {
+
+            //Auditoria de checkin fallido - ya registrado
+            await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.ALREADY_CHECKED_IN)).catch(() => { });
             return {
                 success: false,
                 errorCode: CheckInErrorCode.ALREADY_CHECKED_IN,
@@ -102,6 +128,8 @@ class CheckInService {
         const attendeesDTO = eventService.getEventAttendees(event);
 
         if (attendeesDTO && !attendeesDTO.some(attendee => attendee.email === userEmail)) {
+            //Auditoria de checkin fallido - usuario no es asistente
+            await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.NOT_ATTENDEE)).catch(() => { });
             return {
                 success: false,
                 errorCode: CheckInErrorCode.NOT_ATTENDEE,
@@ -115,6 +143,8 @@ class CheckInService {
 
         if (!canCheckIn.canCheckIn) {
             const errorCode = canCheckIn.errorCode || CheckInErrorCode.UNKNOWN_ERROR;
+            const reason = String(errorCode);
+            await auditService.recordCheckinFailed(userEmail ?? null, eventId, reason).catch(() => { });
             return {
                 success: false,
                 errorCode,
@@ -134,6 +164,8 @@ class CheckInService {
             const eventWasModified = overlapService.wasEventTimeModified(event);
 
             if (eventWasModified) {
+                // Auditoria de checkin fallido - evento modificado con overlap
+                await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.EVENT_MODIFIED_OVERLAPPED)).catch(() => { });
                 return {
                     success: false,
                     errorCode: CheckInErrorCode.EVENT_MODIFIED_OVERLAPPED,
@@ -146,6 +178,8 @@ class CheckInService {
                 const primaryWasModified = overlapService.wasEventTimeModified(primaryEvent);
 
                 if (!primaryWasModified) {
+                    // Auditoria de checkin fallido - evento con overlap de prioridad
+                    await auditService.recordCheckinFailed(userEmail ?? null, eventId, String(CheckInErrorCode.EVENT_OVERLAPPED)).catch(() => { }); // LOG de auditoria
                     return {
                         success: false,
                         errorCode: CheckInErrorCode.EVENT_OVERLAPPED,
@@ -179,6 +213,9 @@ class CheckInService {
 
         // Check-in exitoso
         await eventService.updateEventCheckInStatus(eventId, CheckInStatus.CHECKED_IN);
+
+        // Auditoria de checkin exitoso
+        await auditService.recordCheckin(userEmail ?? null, eventId).catch(() => { });
 
         const now = Date.now();
         const isEventInProgress = this.isEventInProgress(startTime, endTime, now);
@@ -246,7 +283,7 @@ class CheckInService {
                 await eventService.updateEventCheckInStatus(event.id, newStatus);
 
                 if (newStatus === CheckInStatus.EXPIRED) {
-                    // @LOG
+
                     console.log(
                         `► [CheckInService] Check-in expirado del evento:` +
                         `\n  id evento: ${event.id}` +
