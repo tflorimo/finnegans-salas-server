@@ -1,13 +1,8 @@
-import path from 'path';
-import fs from 'fs';
-import { getEmailTransporter, EMAIL_FROM } from '../config/nodemailer';
+import { sendEmail } from '../config/nodemailer';
 import {
   getUserCreatedTemplate,
   getCheckInReminderTemplate,
   getCheckInSuccessTemplate,
-  getUserCreatedTextTemplate,
-  getCheckInReminderTextTemplate,
-  getCheckInSuccessTextTemplate,
 } from '../templates/emailTemplates';
 import userService from './userService';
 import eventService from './eventService';
@@ -36,38 +31,15 @@ interface SendEmailOptions {
   to: string;
   subject: string;
   html: string;
-  text: string;
-  attachments?: any[];
 }
 
 export class NodemailerService {
-  private getLogoAttachment() {
-    const logoPath = path.join(__dirname, '../assets/images/finnegansLogoMainLightblue.svg');
-    if (!fs.existsSync(logoPath)) return [];
-    return [
-      {
-        filename: 'finnegansLogoMainLightblue.svg',
-        path: logoPath,
-        cid: 'company-logo',
-      },
-    ];
-  }
-
-  private async sendEmail(options: SendEmailOptions): Promise<boolean> {
+  private async sendEmailInternal(options: SendEmailOptions): Promise<boolean> {
     try {
-      const transporter = await getEmailTransporter();
-      await transporter.sendMail({
-        from: EMAIL_FROM,
+      await sendEmail({
         to: options.to,
         subject: options.subject,
         html: options.html,
-        text: options.text,
-        attachments: options.attachments || [],
-        headers: {
-          'X-Priority': '3',
-          'X-MSMail-Priority': 'Normal',
-          Importance: 'Normal',
-        },
       });
       return true;
     } catch (error) {
@@ -86,18 +58,11 @@ export class NodemailerService {
       userEmail: user.email,
       role: user.role,
     });
-    const text = getUserCreatedTextTemplate({
-      userName: displayName,
-      userEmail: user.email,
-      role: user.role,
-    });
 
-    return this.sendEmail({
+    return this.sendEmailInternal({
       to: user.email,
       subject: 'Bienvenido a Finnegans Salas',
       html,
-      text,
-      attachments: this.getLogoAttachment(),
     });
   }
 
@@ -127,19 +92,11 @@ export class NodemailerService {
       roomName,
       startTime,
     });
-    const text = getCheckInReminderTextTemplate({
-      userName: displayName,
-      eventName,
-      roomName,
-      startTime,
-    });
 
-    return this.sendEmail({
+    return this.sendEmailInternal({
       to: user.email,
       subject: `Recordatorio de check-in: "${eventName}"`,
       html,
-      text,
-      attachments: this.getLogoAttachment(),
     });
   }
 
@@ -170,19 +127,11 @@ export class NodemailerService {
       roomName,
       checkInTime: checkInTimeText,
     });
-    const text = getCheckInSuccessTextTemplate({
-      userName: displayName,
-      eventName,
-      roomName,
-      checkInTime: checkInTimeText,
-    });
 
-    return this.sendEmail({
+    return this.sendEmailInternal({
       to: user.email,
-      subject: `Check-in confirmado: "${eventName}"`,
+      subject: `Check-in exitoso: "${eventName}"`,
       html,
-      text,
-      attachments: this.getLogoAttachment(),
     });
   }
 
