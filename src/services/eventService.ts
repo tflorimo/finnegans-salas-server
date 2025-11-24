@@ -4,7 +4,6 @@ import { Attendee } from "../models/event.types";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 import { getRemainingWeekRange } from "../utils/dateUtils";
 import userService from "./userService";
-import overlapService from "./overlapService";
 import { Op } from "sequelize";
 
 const UNKNOWN_USER_NAME = "Usuario desconocido";
