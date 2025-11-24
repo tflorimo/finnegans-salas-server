@@ -8,11 +8,16 @@ import {
     CheckInResult,
 } from "../constants/checkInErrors";
 import { Room } from "../models";
+import nodemailerService from "./nodemailerService";
 
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 export const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const REMINDER_WINDOW_MS = 2 * 60 * 1000;
 
 class CheckInService {
+
+    // Memoria en RAM de recordatorios ya enviados por evento+fecha+usuario (para evitar mails duplicados)
+    private sentReminders: Set<string> = new Set();
 
     private getTimestamp(date: Date): number {
         return new Date(date).getTime();
@@ -160,7 +165,7 @@ class CheckInService {
 
                 const now = Date.now();
                 const eventStart = new Date(event.startTime).getTime();
-                const {tenMinutesBefore} = this.getEventTimestamps(event.startTime, event.endTime)
+                const { tenMinutesBefore } = this.getEventTimestamps(event.startTime, event.endTime)
 
                 if (now < tenMinutesBefore) {
                     console.log(
@@ -187,6 +192,20 @@ class CheckInService {
         await eventService.updateEventCheckInStatus(eventId, CheckInStatus.CHECKED_IN);
 
         const now = Date.now();
+        const checkInTime = new Date(now);
+
+        // Notificación por email de check-in exitoso
+        nodemailerService.sendNotificationEmail({
+            type: 'CHECK_IN_SUCCESS',
+            userEmail,
+            eventId,
+            roomEmail,
+            checkInTime,
+        })
+            .catch((error) => {
+                console.error('[CheckInService] Error enviando email de check-in exitoso:', error);
+            });
+
         const isEventInProgress = this.isEventInProgress(startTime, endTime, now);
 
         console.log(
@@ -240,6 +259,7 @@ class CheckInService {
 
     async processCheckInEventsStatuses(room: Room): Promise<void> {
         const events = await eventService.getEventsByRoomId(room.email);
+        const now = Date.now();
 
         for (const event of events) {
             const newStatus = this.determineCheckInStatus(
@@ -247,6 +267,31 @@ class CheckInService {
                 event.endTime,
                 event.checkInStatus
             );
+
+            const { tenMinutesBefore } = this.getEventTimestamps(event.startTime, event.endTime);
+            const isInReminderWindow =
+                now >= tenMinutesBefore &&
+                now < tenMinutesBefore + REMINDER_WINDOW_MS;
+
+            const reminderKey = `${event.id}-${event.startTime.toISOString().split("T")[0]}`;
+
+            // Aviso por email de 10 a 8 min antes del inicio del evento a toda la lista de attendees
+            if (isInReminderWindow && newStatus === CheckInStatus.PENDING) {
+                if (!this.sentReminders.has(reminderKey)) { // Para evitar envíos duplicados
+                    this.sentReminders.add(reminderKey);
+                    for (const attendee of event.attendees) {
+                        nodemailerService.sendNotificationEmail({
+                            type: 'CHECK_IN_REMINDER',
+                            userEmail: attendee.email,
+                            eventId: event.id,
+                            roomEmail: room.email,
+                        })
+                            .catch((error) => {
+                                console.error('[CheckInService] Falló envío de recordatorio de check-in:', error);
+                            });
+                    }
+                }
+            }
 
             if (newStatus !== event.checkInStatus) {
                 await eventService.updateEventCheckInStatus(event.id, newStatus);

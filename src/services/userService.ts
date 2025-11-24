@@ -4,15 +4,10 @@ import {
   UserRole,
   UserAttributes,
 } from "../models/user.types";
+import nodemailerService from "./nodemailerService";
 
 class UserService {
-  async findUserById(id: number): Promise<UserAttributes | null> {
-    const user = await User.findByPk(id);
-
-    if (!user) {
-      return null;
-    }
-
+  private mapToUserAttributes(user: User): UserAttributes {
     const userBase = user.get({ plain: true }) as UserAttributes;
     return {
       id: userBase.id,
@@ -20,6 +15,26 @@ class UserService {
       name: userBase.name,
       role: userBase.role,
     };
+  }
+
+  async findUserById(id: number): Promise<UserAttributes | null> {
+    const user = await User.findByPk(id);
+
+    if (!user) {
+      return null;
+    }
+
+    return this.mapToUserAttributes(user);
+  }
+
+  async findUserByEmail(email: string): Promise<UserAttributes | null> {
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return null;
+    }
+
+    return this.mapToUserAttributes(user);
   }
 
   async getNameByEmail(email: string): Promise<string | null> {
@@ -72,12 +87,7 @@ class UserService {
         );
       }
 
-      return {
-        id: existingUser.id,
-        email: existingUser.email,
-        name: existingUser.name,
-        role: existingUser.role,
-      };
+      return this.mapToUserAttributes(existingUser);
     }
 
     const newUser = await User.create({
@@ -94,12 +104,16 @@ class UserService {
       `\n  rol: ${newUser.role}`
     );
 
-    return {
-      id: newUser.id,
-      email: newUser.email,
-      name: newUser.name,
-      role: newUser.role,
-    };
+    // Envía email de bienvenida
+    nodemailerService.sendNotificationEmail({
+      type: "USER_CREATED",
+      userId: newUser.id,
+    })
+      .catch((error: any) => {
+        console.error("[UserService] Error enviando email de bienvenida:", error);
+      });
+
+    return this.mapToUserAttributes(newUser);
   }
 
   determineUserRole(email: string): UserRole {
@@ -111,7 +125,7 @@ class UserService {
   }
 
   async validateUserForAuth(userId: number): Promise<UserAttributes | null> {
-    
+
     const user = await User.findByPk(userId);
 
     if (!user) {
@@ -119,12 +133,7 @@ class UserService {
       return null;
     }
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
+    return this.mapToUserAttributes(user);
   }
 }
 
