@@ -8,5 +8,6 @@ export interface HourlyForecastDTO {
 
 export interface RoomHourlyForecastDTO {
     roomEmail: string;
+    roomName: string;
     forecasts: HourlyForecastDTO[];
 }
