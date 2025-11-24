@@ -44,13 +44,24 @@ const getBaseTemplate = (content: string): string => {
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .header {
-      background-color: #2c3e50;
-      padding: 30px;
+      background-color: #1a2332;
+      padding: 40px 30px;
       text-align: center;
     }
-    .header img {
-      max-width: 200px;
-      height: auto;
+    .logo-text {
+      color: #4bc3fe;
+      font-size: 48px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: 2px;
+      font-family: 'Arial', sans-serif;
+    }
+    .logo-subtitle {
+      color: #4bc3fe;
+      font-size: 14px;
+      margin: 5px 0 0 0;
+      letter-spacing: 3px;
+      font-weight: 300;
     }
     .content {
       padding: 40px 30px;
@@ -71,15 +82,6 @@ const getBaseTemplate = (content: string): string => {
       padding: 15px;
       margin: 20px 0;
     }
-    .button {
-      display: inline-block;
-      padding: 12px 30px;
-      background-color: #3498db;
-      color: #ffffff;
-      text-decoration: none;
-      border-radius: 4px;
-      margin: 20px 0;
-    }
     .footer {
       background-color: #ecf0f1;
       padding: 20px 30px;
@@ -95,7 +97,8 @@ const getBaseTemplate = (content: string): string => {
 <body>
   <div class="container">
     <div class="header">
-      <img src="cid:company-logo" alt="Finnegans Salas" />
+      <h1 class="logo-text">Finnegans</h1>
+      <p class="logo-subtitle">Gestor de reservas</p>
     </div>
     ${content}
     <div class="footer">
@@ -124,9 +127,8 @@ export const getUserCreatedTemplate = (params: UserCreatedParams): string => {
       
       <p>Ahora puedes acceder al sistema para:</p>
       <ul>
-        <li>Reservar salas para tus reuniones</li>
-        <li>Realizar check-in de tus eventos</li>
-        <li>Gestionar tus reservas</li>
+        <li>Realizar el check-in de tus eventos</li>
+        <li>Consultar la agenda general del edificio y visualizar el estado en tiempo real de las salas.</li>
       </ul>
       
       <p>Si tienes alguna pregunta o necesitas ayuda, no dudes en contactar con el equipo de soporte.</p>
@@ -134,16 +136,16 @@ export const getUserCreatedTemplate = (params: UserCreatedParams): string => {
       <p>¡Gracias por usar Finnegans Salas!</p>
     </div>
   `;
-  
+
   return getBaseTemplate(content);
 };
 
 export const getCheckInReminderTemplate = (params: CheckInReminderParams): string => {
   const content = `
     <div class="content">
-      <h1>⏰ Recordatorio de Check-in</h1>
+      <h1>Recordatorio de Check-in</h1>
       <p>Hola <strong>${params.userName}</strong>,</p>
-      <p>Te recordamos que tu evento está próximo a comenzar y necesitas hacer check-in.</p>
+      <p>Te recordamos que tu evento está próximo a comenzar y necesitamos que realices el check-in.</p>
       
       <div class="highlight-box">
         <p><strong>Detalles del evento:</strong></p>
@@ -152,23 +154,23 @@ export const getCheckInReminderTemplate = (params: CheckInReminderParams): strin
         <p>🕐 Hora de inicio: ${params.startTime}</p>
       </div>
       
-      <p><strong>Importante:</strong> Tienes una ventana de <strong>10 minutos</strong> antes del inicio del evento para realizar el check-in.</p>
+      <p><strong>Importante:</strong> Tienes una ventana de <strong>10 minutos</strong> antes hasta <strong>15 minutos</strong> después del inicio del evento para realizar el check-in.</p>
       
       <p>Si no realizas el check-in a tiempo, tu reserva podría ser cancelada y la sala asignada a otro evento.</p>
       
       <p>Accede al sistema ahora para confirmar tu asistencia.</p>
     </div>
   `;
-  
+
   return getBaseTemplate(content);
 };
 
 export const getCheckInSuccessTemplate = (params: CheckInSuccessParams): string => {
   const content = `
     <div class="content">
-      <h1>✅ Check-in Confirmado</h1>
+      <h1>Check-in realizado con éxito</h1>
       <p>Hola <strong>${params.userName}</strong>,</p>
-      <p>Tu check-in ha sido registrado exitosamente.</p>
+      <p>Hemos registrado tu check-in sin inconvenientes.</p>
       
       <div class="highlight-box">
         <p><strong>Confirmación:</strong></p>
@@ -189,65 +191,6 @@ export const getCheckInSuccessTemplate = (params: CheckInSuccessParams): string 
       <p>¡Que tengas una excelente reunión!</p>
     </div>
   `;
-  
+
   return getBaseTemplate(content);
-};
-
-export const getUserCreatedTextTemplate = (params: UserCreatedParams): string => {
-  return `
-¡Bienvenido a Finnegans Salas!
-
-Hola ${params.userName},
-
-Tu cuenta ha sido creada exitosamente en el sistema de gestión de salas Finnegans.
-
-Detalles de tu cuenta:
-- Email: ${params.userEmail}
-- Rol: ${params.role}
-
-Ahora puedes acceder al sistema para reservar salas, realizar check-in y gestionar tus reservas.
-
-Este es un correo automático, por favor no responder.
-© ${new Date().getFullYear()} Finnegans Salas
-  `.trim();
-};
-
-export const getCheckInReminderTextTemplate = (params: CheckInReminderParams): string => {
-  return `
-Recordatorio de Check-in
-
-Hola ${params.userName},
-
-Te recordamos que tu evento está próximo a comenzar y necesitas hacer check-in.
-
-Detalles del evento:
-- Evento: ${params.eventName}
-- Sala: ${params.roomName}
-- Hora de inicio: ${params.startTime}
-
-Importante: Tienes una ventana de 10 minutos antes del inicio del evento para realizar el check-in.
-
-Este es un correo automático, por favor no responder.
-© ${new Date().getFullYear()} Finnegans Salas
-  `.trim();
-};
-
-export const getCheckInSuccessTextTemplate = (params: CheckInSuccessParams): string => {
-  return `
-Check-in Confirmado
-
-Hola ${params.userName},
-
-Tu check-in ha sido registrado exitosamente.
-
-Confirmación:
-- Evento: ${params.eventName}
-- Sala: ${params.roomName}
-- Check-in realizado: ${params.checkInTime}
-
-Tu sala está confirmada y lista para usar.
-
-Este es un correo automático, por favor no responder.
-© ${new Date().getFullYear()} Finnegans Salas
-  `.trim();
 };
