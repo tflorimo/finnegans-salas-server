@@ -113,7 +113,6 @@ class RoomService {
 
         if (isBusy) {
             await this.updateRoomCurrentEvent(roomEmail, currentEventId);
-            // @LOG
             console.log(
                 `► [RoomService] sala actualizada a ocupada:` +
                 `\n  id sala: ${roomEmail}` +

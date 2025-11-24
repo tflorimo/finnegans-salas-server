@@ -98,7 +98,6 @@ class EventService {
 
     async restoreEvent(eventId: string): Promise<void> {
         await Event.restore({ where: { id: eventId } });
-        // @LOG
         console.log(
             `► [EventService] evento restaurado:` +
             `\n  id evento: ${eventId}`

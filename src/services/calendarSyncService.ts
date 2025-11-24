@@ -77,7 +77,6 @@ class CalendarSyncService {
                 // Soft delete de eventos que ya no están en Google Calendar
                 for (const localEvent of localEvents) {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
-                        // @LOG
                         console.log(
                             `► [CalendarSyncService] Evento` +
                             `\n  id: ${localEvent.id}` +
@@ -158,7 +157,6 @@ class CalendarSyncService {
                                 }
 
                                 if (hasRoomChange) {
-                                    // @LOG
                                     console.log(
                                         `► [CalendarSyncService] Evento` +
                                         `\n  id: ${event.id}` +
@@ -176,7 +174,7 @@ class CalendarSyncService {
                                     eventSearched.startTime,
                                     eventSearched.endTime
                                 );
-                                
+
                                 updatedEvent.scheduleUpdatedAt = new Date();
                                 console.log(
                                     `► [CalendarSyncService] El evento` +
@@ -202,7 +200,6 @@ class CalendarSyncService {
                         // Restaura solo si estaba eliminado y ahora existe en calendar
                         if (eventSearched.deletedAt) {
                             await eventService.restoreEvent(event.id!);
-                            // @LOG
                             console.log(
                                 `► [CalendarSyncService] Evento restaurado: ` +
                                 `\n  id: ${event.id} ` +

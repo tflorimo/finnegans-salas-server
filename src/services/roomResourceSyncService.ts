@@ -59,7 +59,6 @@ class RoomResourceSyncService {
             // Marca como eliminadas las rooms que ya no están en la API (soft delete)
             for (const localRoom of localRooms) {
                 if (!roomEmailsFromApi.includes(localRoom.email)) {
-                    // @LOG
                     console.log(
                         `► [RoomResourceSyncService] sala eliminada de la API:` +
                         `\n  id: ${localRoom.email}` +
@@ -80,7 +79,6 @@ class RoomResourceSyncService {
 
                     if (roomModel.deletedAt) {
                         await roomService.restoreRoom(resource.resourceEmail!);
-                        // @LOG
                         console.log(
                             `► [RoomResourceSyncService] sala restaurada:` +
                             `\n  id: ${resource.resourceEmail}` +
