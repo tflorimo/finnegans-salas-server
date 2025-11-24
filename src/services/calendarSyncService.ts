@@ -126,34 +126,47 @@ class CalendarSyncService {
                             new Date(updatedEvent.endTime).getTime();
 
                         const hasRoomChange = eventSearched.roomEmail !== newRoomEmail;
+                        const recalculateCheckIn = hasRoomChange || hasTimeChanges;
 
                         const hasChanges =
                             eventSearched.title !== updatedEvent.title ||
                             eventSearched.creatorMail !== updatedEvent.creatorMail ||
                             attendeesChanged() ||
-                            hasRoomChange;
+                            hasRoomChange ||
+                            hasTimeChanges;
 
-                        if (hasTimeChanges || hasChanges) {
-                            // Si cambió de sala, recalculamos el check-in antes del upsert
-                            if (hasRoomChange) {
+                        if (hasChanges) {
+                            // Si cambió de sala o de horario, recalculamos el check-in antes del upsert
+                            if (recalculateCheckIn) {
                                 const checkInStatus = checkInService.determineCheckInStatus(
                                     updatedEvent.startTime,
-                                    updatedEvent.endTime
+                                    updatedEvent.endTime,
+                                    hasTimeChanges ? updatedEvent.checkInStatus : undefined
                                 );
 
                                 if (checkInStatus !== updatedEvent.checkInStatus) {
                                     updatedEvent.checkInStatus = checkInStatus;
+                                    console.log(
+                                        `► [CalendarSyncService] El evento` +
+                                        `\n  id: ${event.id}` +
+                                        `\n  nombre: ${event.summary}` +
+                                        `\n  cambió de estado de check-in:` +
+                                        `\n  antes: ${eventSearched.checkInStatus}` +
+                                        `\n  ahora: ${updatedEvent.checkInStatus}`
+                                    );
                                 }
 
-                                // @LOG
-                                console.log(
-                                    `► [CalendarSyncService] Evento` +
-                                    `\n  id: ${event.id}` +
-                                    `\n  nombre: ${event.summary}` +
-                                    `\n► Cambió de sala:` +
-                                    `\n  id anterior: ${eventSearched.roomEmail}` +
-                                    `\n  id nuevo: ${newRoomEmail}`
-                                );
+                                if (hasRoomChange) {
+                                    // @LOG
+                                    console.log(
+                                        `► [CalendarSyncService] Evento` +
+                                        `\n  id: ${event.id}` +
+                                        `\n  nombre: ${event.summary}` +
+                                        `\n  Cambió de sala:` +
+                                        `\n  id anterior: ${eventSearched.roomEmail}` +
+                                        `\n  id nuevo: ${newRoomEmail}`
+                                    );
+                                }
                             }
 
                             if (hasTimeChanges) {
@@ -163,9 +176,9 @@ class CalendarSyncService {
                                     `\n  id: ${event.id}` +
                                     `\n  nombre: ${event.summary}` +
                                     `\n  cambió de horario:` +
-                                    `\n  ${getLocalTimestamp(eventSearched.startTime)}` +
+                                    `\n  inicio: ${getLocalTimestamp(eventSearched.startTime)}` +
                                     ` → ${getLocalTimestamp(updatedEvent.startTime)}` +
-                                    `\n  ${getLocalTimestamp(eventSearched.endTime)}` +
+                                    `\n  fin: ${getLocalTimestamp(eventSearched.endTime)}` +
                                     ` → ${getLocalTimestamp(updatedEvent.endTime)}`
                                 );
                             }

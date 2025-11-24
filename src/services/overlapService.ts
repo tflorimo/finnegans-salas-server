@@ -19,6 +19,20 @@ class OverlapService {
         const primaryWasModified = this.wasEventTimeModified(primaryEvent);
 
         for (const event of activeEvents) {
+            if (activeEvents.length <= 1) {
+                if (event.overlapStatus !== OverlapStatus.PRIMARY) {
+                    const wasChanged = await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
+                    if (wasChanged) {
+                        console.log(
+                            `► [OverlapService] evento marcado como PRIMARIO (único activo):` +
+                            `\n   id: ${event.id}` +
+                            `\n   nombre: ${event.title || "Sin nombre"}`
+                        );
+                    }
+                }
+                continue;
+            }
+
             if (event.id !== primaryEvent.id) {
                 const areOverlapped = this.eventsOverlap(event.startTime, event.endTime, primaryEvent.startTime, primaryEvent.endTime);
                 const eventWasModified = this.wasEventTimeModified(event);
@@ -38,24 +52,26 @@ class OverlapService {
                             `\n► Evento PRIMARIO (causante del overlap):` +
                             `\n   id: ${primaryEvent.id}` +
                             `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
-                            `\nMotivo: ${reason}`
+                            `\n   motivo: ${reason}`
                         );
                     }
 
                 } else {
-                    await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
-                    // @LOG
-                    console.log(
-                        `► [OverlapService] resolución de prioridad entre eventos:` +
-                        `\n► Evento SUPERPUESTO (mantiene prioridad):` +
-                        `\n   id: ${event.id}` +
-                        `\n   nombre: ${event.title || "Sin nombre"}` +
-                        `\n   estado: no modificado` +
-                        `\n► Evento PRIMARIO (modificado):` +
-                        `\n   id: ${primaryEvent.id}` +
-                        `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
-                        `\n   motivo: el superpuesto no fue modificado y conserva prioridad`
-                    );
+                    const wasChanged = await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
+                    if (wasChanged) {
+                        // @LOG
+                        console.log(
+                            `► [OverlapService] resolución de prioridad entre eventos:` +
+                            `\n► Evento SUPERPUESTO (mantiene prioridad):` +
+                            `\n   id: ${event.id}` +
+                            `\n   nombre: ${event.title || "Sin nombre"}` +
+                            `\n   estado: no modificado` +
+                            `\n► Evento PRIMARIO (modificado):` +
+                            `\n   id: ${primaryEvent.id}` +
+                            `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
+                            `\n   motivo: el superpuesto no fue modificado y conserva prioridad`
+                        );
+                    }
                 }
             }
         }

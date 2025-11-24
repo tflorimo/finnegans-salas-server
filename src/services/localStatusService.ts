@@ -63,7 +63,6 @@ class LocalStatusService {
 
                 changes++;
                 currentEventChanged = true;
-                //currentEventId = newCurrentEventId;
             }
         }
 

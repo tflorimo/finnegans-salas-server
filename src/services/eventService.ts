@@ -117,18 +117,13 @@ class EventService {
         const event = await Event.findByPk(eventId);
         if (!event) return false;
 
-        // Si ya tiene ese mismo status, no hago nada
         if (event.overlapStatus === newStatus) {
             return false;
         }
 
-        await Event.update(
-            { overlapStatus: newStatus },
-            {
-                where: { id: eventId },
-                silent: true
-            }
-        );
+        event.overlapStatus = newStatus;
+
+        await event.save({ silent: true });
 
         return true;
     }
