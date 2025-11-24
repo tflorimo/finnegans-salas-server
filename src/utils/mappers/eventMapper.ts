@@ -7,7 +7,7 @@ import {
 } from "../../dtos/eventDTO";
 import { Event } from "../../models";
 import { EventAttributes } from "../../models/event.types";
-import { FIFTEEN_MINUTES_MS } from "../../services/checkInService";
+import { FIFTEEN_MINUTES_MS } from "../../utils/checkInUtils";
 import { getDateWithoutTime } from "../dateUtils";
 
 // Helper para mapear attendees desde la respuesta de Google Calendar

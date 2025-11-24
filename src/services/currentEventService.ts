@@ -2,12 +2,12 @@ import eventService from "./eventService";
 import { CheckInStatus } from "../dtos/eventDTO";
 import { Event } from "../models";
 import overlapService from "./overlapService";
-import { FIFTEEN_MINUTES_MS } from "./checkInService";
+import { FIFTEEN_MINUTES_MS } from "../utils/checkInUtils";
 
 // Servicio para determinar evento activo, filtrar y definir estado del evento en curso de una sala
 class CurrentEventService {
 
-    async findActiveEvents(roomEmail: string, now: Date): Promise<{primaryEvent: Event; activeEvents: Event[]} | null> {
+    async findActiveEvents(roomEmail: string, now: Date): Promise<{ primaryEvent: Event; activeEvents: Event[] } | null> {
         const allEvents = await eventService.getActiveEventsByRoomId(roomEmail);
 
         if (allEvents.length === 0) return null;
@@ -20,13 +20,10 @@ class CurrentEventService {
             return { primaryEvent: activeEvents[0], activeEvents };
         }
 
-        const sortedEvents = overlapService.evaluatePriority(activeEvents, now);
-        const primaryEvent = sortedEvents[0];
-
-        return { primaryEvent, activeEvents };
+        const { primary } = overlapService.selectPrimaryForOverlapGroup(activeEvents, now);
+        return { primaryEvent: primary, activeEvents };
     }
 
-    // @TODO: podría ser un utils para no ir y venir de overlapService a currentEventService
     filterActiveEvents(events: Event[], now: Date): Event[] {
         return events.filter(event => {
             const eventStart = new Date(event.startTime).getTime();
@@ -61,7 +58,7 @@ class CurrentEventService {
         if (!currentEventId) return false;
         const currentEvent = await eventService.getEventById(currentEventId);
         if (!currentEvent || currentEvent.deletedAt) return false;
-        
+
         return new Date(currentEvent.startTime).getTime() <= Date.now();
     }
 }
