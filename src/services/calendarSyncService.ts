@@ -5,6 +5,7 @@ import eventService from '../services/eventService';
 import { mapResponseToEventDTO, mapUpdatedEvent } from '../utils/mappers/eventMapper';
 import { getCalendarSyncRange, getLocalTimestamp } from '../utils/dateUtils';
 import checkInService from './checkInService';
+import overlapService from './overlapService';
 
 // Servicio encargado de sincronizar eventos de Google Calendar con la base local.
 class CalendarSyncService {
@@ -170,6 +171,12 @@ class CalendarSyncService {
                             }
 
                             if (hasTimeChanges) {
+                                overlapService.saveOriginalScheduleFromDTO(
+                                    eventSearched.id,
+                                    eventSearched.startTime,
+                                    eventSearched.endTime
+                                );
+                                
                                 updatedEvent.scheduleUpdatedAt = new Date();
                                 console.log(
                                     `► [CalendarSyncService] El evento` +
