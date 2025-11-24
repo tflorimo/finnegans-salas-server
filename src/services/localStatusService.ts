@@ -3,10 +3,10 @@ import { CheckInStatus } from "../dtos/eventDTO";
 import eventService from "./eventService";
 import roomService from "./roomService";
 import currentEventService from "./currentEventService";
-import checkInService from "./checkInService";
-import overlapService from "./overlapService";
+import overlapSyncService from "./overlapSyncService";
+import checkInSyncService from "./checkInSyncService";
 
-//Servicio para gestión de estados de salas y limpieza automática
+// Servicio para gestión de estados de salas y limpieza automática
 class LocalStatusService {
 
     // Método principal para limpieza y actualización de estados de salas y eventos
@@ -40,10 +40,10 @@ class LocalStatusService {
         const newCurrentEventId = activeEvents?.primaryEvent ? activeEvents.primaryEvent.id : null;
 
         // Testea la superposición de eventos. Este método actualizará los estados de superposición.
-        await overlapService.handleOverlappingEvents(activeEvents?.activeEvents, activeEvents?.primaryEvent);
+        await overlapSyncService.syncOverlapForActiveEvents(activeEvents?.activeEvents, now);
 
         // Procesamiento de los estados de check-in de los eventos asociados a la sala
-        await checkInService.processCheckInEventsStatuses(room);
+        await checkInSyncService.processCheckInEventsStatuses(room);
 
         const eventChanged = newCurrentEventId ? await eventService.getEventById(newCurrentEventId) : null;
         let currentEventChanged = false;
@@ -80,7 +80,6 @@ class LocalStatusService {
                 const cleared = await roomService.clearRoom(room.email);
 
                 if (cleared) {
-                    // @LOG
                     console.log(
                         `► [LocalStatusService] sala sin eventos activos:` +
                         `\n  id sala: ${room.email}` +
@@ -107,7 +106,6 @@ class LocalStatusService {
             }
 
             if (shouldBeBusy) {
-                // @LOG
                 console.log(
                     `► [LocalStatusService] sala ocupada:` +
                     `\n  id sala: ${room.email}` +

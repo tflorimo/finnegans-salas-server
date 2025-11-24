@@ -4,6 +4,7 @@ import { Attendee } from "../models/event.types";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 import { getRemainingWeekRange } from "../utils/dateUtils";
 import userService from "./userService";
+import overlapService from "./overlapService";
 import { Op } from "sequelize";
 
 const UNKNOWN_USER_NAME = "Usuario desconocido";
@@ -61,8 +62,18 @@ class EventService {
         });
     }
 
-    async upsertEvent(event: EventCheckInDTO): Promise<void> {
+    async getEventsByRoomIdWithTimeRange(roomId: string, startTime: Date, endTime: Date): Promise<Event[]> {
+        return Event.findAll({
+            where: {
+                roomEmail: roomId,
+                startTime: { [Op.lt]: endTime },     
+                endTime: { [Op.gt]: startTime }      
+            },
+            paranoid: true,
+        });
+    }
 
+    async upsertEvent(event: EventCheckInDTO): Promise<void> {
         const hasRoomResource = event.attendees.some(attendee => attendee.resource);
 
         if (!hasRoomResource) {
@@ -103,13 +114,6 @@ class EventService {
                 where: { id: eventId },
                 silent: true
             }
-        );
-    }
-
-    async updateScheduleUpdatedAt(eventId: string, date: Date): Promise<void> {
-        await Event.update(
-            { scheduleUpdatedAt: date },
-            { where: { id: eventId } }
         );
     }
 
