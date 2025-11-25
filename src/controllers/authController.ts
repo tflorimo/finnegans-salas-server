@@ -10,6 +10,7 @@ import {
 } from "../config/authCookies";
 import { isOAuthAccessDeniedError } from "../config/oAuthAccess";
 import { buildFrontendCallbackUrl } from "../utils/frontendRedirect";
+import { auditService } from "../services/auditService";
 
 class AuthController {
   authRedirect = (_: Request, res: Response): void => {
@@ -36,7 +37,17 @@ class AuthController {
 
       res.redirect(302, redirectUrl);
     } catch (error) {
+
+
+      // se busca el email en la query
+      const attemptedEmail = typeof req.query.email === 'string' ? req.query.email : null;
+
       if (isOAuthAccessDeniedError(error)) {
+        // registro de login fallido en auditoría (no bloquea el flujo)
+        auditService.recordLoginFailed(attemptedEmail, error.reason).catch(err => {
+          console.error('[AuthController][audit] recordLoginFailed failed:', err);
+        });
+
         console.warn(
           `[AuthController] ⚠️  Intento de inicio de sesión rechazado\n` +
           `  Razón: ${error.reason}\n` +
@@ -51,6 +62,11 @@ class AuthController {
         res.redirect(302, redirectUrl);
         return;
       }
+
+      // registro de login fallido en auditoría (no bloquea el flujo)
+      auditService.recordLoginFailed(attemptedEmail, (error as Error).message || 'OAUTH_FAILED').catch(err => {
+        console.error('[AuthController][audit] recordLoginFailed failed:', err);
+      });
 
       const redirectUrl = buildFrontendCallbackUrl({
         success: "false",
@@ -92,7 +108,14 @@ class AuthController {
     }
   };
 
-  logout = (_: Request, res: Response): void => {
+  logout = (req: Request, res: Response): void => {
+    // se cambia a req para obtener el email del usuario autenticado
+    const userEmail = (req as any).user?.email ?? null;
+    // registro de logout en auditoría (no bloquea el flujo)
+    auditService.recordLogout(userEmail).catch(err => {
+      console.error('[AuthController][audit] recordLogout failed:', err);
+    });
+
     clearRefreshCookie(res);
     res.status(204).send();
   };
