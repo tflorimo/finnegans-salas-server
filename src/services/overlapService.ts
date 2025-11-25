@@ -1,80 +1,188 @@
-import { OverlapStatus } from "../dtos/eventDTO";
+import { CheckInErrorCode } from "../constants/checkInErrors";
 import { Event } from "../models";
-import currentEventService from "./currentEventService";
+import { getEventTimestamps } from "../utils/checkInUtils";
 import eventService from "./eventService";
 
 // Servicio dedicado a la gestión de superposiciones de eventos
 class OverlapService {
 
-    wasEventTimeModified(event: Event): boolean {
-        return event.scheduleUpdatedAt != null;
+    /**
+     * Lock de prioridad:
+     * Si un evento ganó prioridad siendo NO modificado frente a modificados,
+     * se guarda un "candado" hasta su endTime actual. Durante ese tiempo,
+     * aunque luego se modifique, sigue siendo candidato protegido a primario.
+     */
+    private primaryLockUntil: Map<string, Date> = new Map();
+
+    /**
+     * Horarios originales de eventos:
+     * Guarda el primer horario conocido de cada evento (startTime y endTime).
+     * Se usa para verificar si eventos superpuestos ORIGINALMENTE no lo estaban.
+     */
+    private originalSchedules: Map<string, { startTime: Date; endTime: Date }> = new Map();
+
+    saveOriginalScheduleFromDTO(eventId: string, startTime: Date, endTime: Date): void {
+        if (!this.originalSchedules.has(eventId)) {
+            this.originalSchedules.set(eventId, {
+                startTime: new Date(startTime),
+                endTime: new Date(endTime),
+            });
+        }
     }
 
-    // Método derivado de la lógica de CurrentEventService, para manejar eventos superpuestos
-    async handleOverlappingEvents(activeEvents: Event[] | undefined, primaryEvent: Event | undefined) {
-        if (!primaryEvent || !activeEvents) {
-            return;
+    private getOriginalSchedule(event: Event): { startTime: Date; endTime: Date } {
+        const original = this.originalSchedules.get(event.id);
+        if (original) {
+            return original;
         }
+        return {
+            startTime: new Date(event.startTime),
+            endTime: new Date(event.endTime),
+        };
+    }
 
-        const primaryWasModified = this.wasEventTimeModified(primaryEvent);
+    cleanExpiredOriginalSchedules(now: Date = new Date()): void {
+        const nowMs = now.getTime();
+        let cleanedCount = 0;
 
-        for (const event of activeEvents) {
-            if (activeEvents.length <= 1) {
-                if (event.overlapStatus !== OverlapStatus.PRIMARY) {
-                    const wasChanged = await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
-                    if (wasChanged) {
-                        console.log(
-                            `► [OverlapService] evento marcado como PRIMARIO (único activo):` +
-                            `\n   id: ${event.id}` +
-                            `\n   nombre: ${event.title || "Sin nombre"}`
-                        );
-                    }
-                }
-                continue;
-            }
-
-            if (event.id !== primaryEvent.id) {
-                const areOverlapped = this.eventsOverlap(event.startTime, event.endTime, primaryEvent.startTime, primaryEvent.endTime);
-                const eventWasModified = this.wasEventTimeModified(event);
-                const shouldMarkAsOverlapped = !primaryWasModified || eventWasModified && areOverlapped;
-
-                if (shouldMarkAsOverlapped) {
-                    const wasMarked = await eventService.setEventOverlapStatus(event.id, OverlapStatus.OVERLAPPED);
-
-                    if (wasMarked) {
-                        const reason = !primaryWasModified ? '[OVERLAP]' : '[MODIFICADO]';
-                        // @LOG
-                        console.log(
-                            `► [OverlapService] evento marcado como SUPERPUESTO:` +
-                            `\n► Evento SUPERPUESTO:` +
-                            `\n   id: ${event.id}` +
-                            `\n   nombre: ${event.title || "Sin nombre"}` +
-                            `\n► Evento PRIMARIO (causante del overlap):` +
-                            `\n   id: ${primaryEvent.id}` +
-                            `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
-                            `\n   motivo: ${reason}`
-                        );
-                    }
-
-                } else {
-                    const wasChanged = await eventService.setEventOverlapStatus(event.id, OverlapStatus.PRIMARY);
-                    if (wasChanged) {
-                        // @LOG
-                        console.log(
-                            `► [OverlapService] resolución de prioridad entre eventos:` +
-                            `\n► Evento SUPERPUESTO (mantiene prioridad):` +
-                            `\n   id: ${event.id}` +
-                            `\n   nombre: ${event.title || "Sin nombre"}` +
-                            `\n   estado: no modificado` +
-                            `\n► Evento PRIMARIO (modificado):` +
-                            `\n   id: ${primaryEvent.id}` +
-                            `\n   nombre: ${primaryEvent.title || "Sin nombre"}` +
-                            `\n   motivo: el superpuesto no fue modificado y conserva prioridad`
-                        );
-                    }
-                }
+        for (const [eventId, schedule] of this.originalSchedules.entries()) {
+            if (schedule.endTime.getTime() < nowMs) {
+                this.originalSchedules.delete(eventId);
+                cleanedCount++;
             }
         }
+
+        if (cleanedCount > 0) {
+            console.log(
+                `[OverlapService] Limpieza de horarios originales: ` +
+                `${cleanedCount} evento(s) finalizado(s) eliminado(s) del Map`
+            );
+        }
+    }
+
+    private doTimesOverlap(
+        start1: Date,
+        end1: Date,
+        start2: Date,
+        end2: Date
+    ): boolean {
+        const s1 = start1.getTime();
+        const e1 = end1.getTime();
+        const s2 = start2.getTime();
+        const e2 = end2.getTime();
+        return s1 < e2 && s2 < e1;
+    }
+
+    private eventsOverlappedOriginally(eventA: Event, eventB: Event): boolean {
+        const scheduleA = this.getOriginalSchedule(eventA);
+        const scheduleB = this.getOriginalSchedule(eventB);
+        return this.doTimesOverlap(
+            scheduleA.startTime,
+            scheduleA.endTime,
+            scheduleB.startTime,
+            scheduleB.endTime
+        );
+    }
+
+    eventsOverlap(a: Event, b: Event): boolean {
+        return this.doTimesOverlap(
+            new Date(a.startTime),
+            new Date(a.endTime),
+            new Date(b.startTime),
+            new Date(b.endTime)
+        );
+    }
+
+    private isEventInCheckInWindow(event: Event, now: Date): boolean {
+        const nowMs = now.getTime();
+        const { end, tenMinutesBefore, fifteenMinutesAfterStart } = getEventTimestamps(
+            event.startTime,
+            event.endTime
+        );
+
+        if (nowMs >= end) return false;
+        if (nowMs < tenMinutesBefore) return false;
+        if (nowMs > fifteenMinutesAfterStart) return false;
+
+        return true;
+    }
+
+    private sortByCheckInPriority(events: Event[]): Event[] {
+        return [...events].sort((a, b) => {
+            const aStart = new Date(a.startTime).getTime();
+            const bStart = new Date(b.startTime).getTime();
+
+            if (aStart !== bStart) {
+                return aStart - bStart;
+            }
+
+            const aCreated = a.createdAt?.getTime() ?? 0;
+            const bCreated = b.createdAt?.getTime() ?? 0;
+
+            if (aCreated !== bCreated) {
+                return aCreated - bCreated;
+            }
+
+            return a.id.localeCompare(b.id);
+        });
+    }
+
+    // Verificación de superposición para check-in
+    async checkEventOverlapForCheckIn(
+        event: Event,
+        roomEmail: string,
+        now: Date = new Date()
+    ): Promise<{ canCheckIn: boolean; errorCode?: CheckInErrorCode }> {
+
+        const overlappingEvents = await eventService.getEventsByRoomIdWithTimeRange(
+            roomEmail,
+            event.startTime,
+            event.endTime
+        );
+
+        const otherEvents = overlappingEvents.filter(e =>
+            e.id !== event.id && !e.deletedAt
+        );
+
+        const nowEvents = otherEvents.filter(e =>
+            this.eventsOverlap(e, event) &&
+            this.isEventInCheckInWindow(e, now)
+        );
+
+        if (nowEvents.length === 0) {
+            return { canCheckIn: true };
+        }
+
+        const originallyOverlappedEvents = nowEvents.filter(e =>
+            this.eventsOverlappedOriginally(event, e)
+        );
+
+        if (originallyOverlappedEvents.length === 0) {
+            return { canCheckIn: true };
+        }
+
+        const scopedEvents: Event[] = [event, ...nowEvents];
+        const ordered = this.sortByCheckInPriority(scopedEvents);
+        const primary = ordered[0];
+
+        if (event.id === primary.id) {
+            return { canCheckIn: true };
+        }
+
+        console.log(
+            `► [OverlapService] Check-in bloqueado:` +
+            `\n   evento intentado: ${event.id} (${event.title})` +
+            `\n   primario en ventana actual: ${primary.id} (${primary.title})`
+        );
+
+        return {
+            canCheckIn: false,
+            errorCode: CheckInErrorCode.EVENT_OVERLAPPED,
+        };
+    }
+
+    wasEventTimeModified(event: Event): boolean {
+        return event.scheduleUpdatedAt != null;
     }
 
     // Evalúa y ordena eventos según prioridad definida
@@ -115,58 +223,94 @@ class OverlapService {
         });
     }
 
-    // Verifica si dos eventos se superponen en el tiempo
-    private eventsOverlap(event1Start: Date, event1End: Date, event2Start: Date, event2End: Date): boolean {
-        const start1 = new Date(event1Start).getTime();
-        const end1 = new Date(event1End).getTime();
-        const start2 = new Date(event2Start).getTime();
-        const end2 = new Date(event2End).getTime();
+    /**
+     * Indica si el evento tiene un "lock" de prioridad vigente.
+     * Si el lock ya expiró, se limpia.
+     */
+    private isProtectedPrimaryCandidate(event: Event, now: Date): boolean {
+        const lock = this.primaryLockUntil.get(event.id);
+        if (!lock) return false;
 
-        return start1 < end2 && start2 < end1;
+        const nowMs = now.getTime();
+        const lockMs = lock.getTime();
+
+        if (nowMs >= lockMs) {
+            this.primaryLockUntil.delete(event.id);
+            return false;
+        }
+
+        return true;
     }
 
-    // Verifica si un evento está superpuesto con otros antes de realizar un checkIn
-    async checkEventOverlapForCheckIn(eventId: string, roomEmail: string, startTime: Date, endTime: Date): Promise<{
-        isOverlapping: boolean;
-        isPrimary: boolean;
-        primaryEventId?: string;
-    }> {
-        const overlappingEvents = await eventService.getActiveEventsByRoomId(roomEmail);
-        const overlaps = overlappingEvents.filter(event =>
-            event.id !== eventId &&
-            this.eventsOverlap(startTime, endTime, event.startTime, event.endTime)
-        );
-
-        if (overlaps.length === 0) {
-            return { isOverlapping: false, isPrimary: true };
+    /**
+     * Criterio de selección de primario para un grupo de eventos superpuestos.
+     * Se usa desde OverlapSyncService (eventos activos).
+     *
+     * Reglas:
+     * - Candidatos prioritarios:
+     *   - Eventos NO modificados.
+     *   - Eventos con lock de prioridad vigente.
+     * - Si hay candidatos, el primario sale de ese subconjunto.
+     * - Si NO hay candidatos, todos se consideran modificados sin protección:
+     *   primario por evaluatePriority sobre todo el grupo.
+     * - SOLO se pone lock cuando:
+     *   - El primario es NO modificado, y
+     *   - Hay al menos otro evento MODIFICADO en el grupo.
+     */
+    selectPrimaryForOverlapGroup(
+        events: Event[],
+        now: Date
+    ): { primary: Event; reason: string } {
+        if (events.length === 0) {
+            throw new Error("[OverlapService] selectPrimaryForOverlapGroup llamado con grupo vacío");
         }
 
-        const currentEvent = await eventService.getEventById(eventId);
-        if (!currentEvent) {
-            return { isOverlapping: false, isPrimary: true };
+        const priorityCandidates = events.filter(ev => {
+            const isModified = this.wasEventTimeModified(ev);
+            if (!isModified) return true;
+            return this.isProtectedPrimaryCandidate(ev, now);
+        });
+
+        const hasAnyModified = events.some(ev => this.wasEventTimeModified(ev));
+        let primary: Event;
+        let reason: string;
+
+        if (priorityCandidates.length > 0) {
+            const ordered = this.evaluatePriority(priorityCandidates, now);
+            primary = ordered[0];
+
+            const allCandidatesNonModified = priorityCandidates.every(
+                ev => !this.wasEventTimeModified(ev)
+            );
+
+            if (allCandidatesNonModified && !hasAnyModified) {
+                reason =
+                    "grupo con todos NO modificados; prioridad por antigüedad/horario";
+            } else if (allCandidatesNonModified && hasAnyModified) {
+                reason =
+                    "grupo con mezcla de modificados y no modificados; se priorizan los NO modificados";
+            } else {
+                reason =
+                    "grupo con candidatos protegidos por lock de prioridad frente a otros modificados";
+            }
+
+            const primaryIsUnmodified = !this.wasEventTimeModified(primary);
+            const hasModifiedOtherThanPrimary = events.some(
+                ev => ev.id !== primary.id && this.wasEventTimeModified(ev)
+            );
+
+            if (primaryIsUnmodified && hasModifiedOtherThanPrimary) {
+                this.primaryLockUntil.set(primary.id, new Date(primary.endTime));
+            }
+        } else {
+            const ordered = this.evaluatePriority(events, now);
+            primary = ordered[0];
+            reason =
+                "grupo con todos modificados; prioridad por updatedAt/createdAt/startTime";
         }
 
-        const allEvents = [...overlaps, currentEvent];
-
-        const now = new Date();
-        const activeEvents = currentEventService.filterActiveEvents(allEvents, now);
-
-        if (activeEvents.length === 0) {
-            return { isOverlapping: true, isPrimary: false, primaryEventId: undefined };
-        }
-
-        const sortedEvents = this.evaluatePriority(activeEvents, now);
-        const primaryEvent = sortedEvents[0];
-
-        const isPrimary = primaryEvent.id === eventId;
-
-        return {
-            isOverlapping: true,
-            isPrimary,
-            primaryEventId: primaryEvent.id,
-        };
+        return { primary, reason };
     }
-
 }
 
 export default new OverlapService();

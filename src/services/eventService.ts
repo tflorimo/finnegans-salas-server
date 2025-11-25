@@ -61,8 +61,18 @@ class EventService {
         });
     }
 
-    async upsertEvent(event: EventCheckInDTO): Promise<void> {
+    async getEventsByRoomIdWithTimeRange(roomId: string, startTime: Date, endTime: Date): Promise<Event[]> {
+        return Event.findAll({
+            where: {
+                roomEmail: roomId,
+                startTime: { [Op.lt]: endTime },     
+                endTime: { [Op.gt]: startTime }      
+            },
+            paranoid: true,
+        });
+    }
 
+    async upsertEvent(event: EventCheckInDTO): Promise<void> {
         const hasRoomResource = event.attendees.some(attendee => attendee.resource);
 
         if (!hasRoomResource) {
@@ -88,7 +98,6 @@ class EventService {
 
     async restoreEvent(eventId: string): Promise<void> {
         await Event.restore({ where: { id: eventId } });
-        // @LOG
         console.log(
             `► [EventService] evento restaurado:` +
             `\n  id evento: ${eventId}`
@@ -103,13 +112,6 @@ class EventService {
                 where: { id: eventId },
                 silent: true
             }
-        );
-    }
-
-    async updateScheduleUpdatedAt(eventId: string, date: Date): Promise<void> {
-        await Event.update(
-            { scheduleUpdatedAt: date },
-            { where: { id: eventId } }
         );
     }
 

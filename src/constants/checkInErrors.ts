@@ -15,8 +15,6 @@ export enum CheckInErrorCode {
     // 403 - Forbidden
     NOT_ATTENDEE = 'NOT_ATTENDEE',
     EVENT_OVERLAPPED = 'EVENT_OVERLAPPED',
-    EVENT_MODIFIED_OVERLAPPED = 'EVENT_MODIFIED_OVERLAPPED',
-    EVENT_NOT_STARTED = 'EVENT_NOT_STARTED',
     
     // 409 - Conflict
     ALREADY_CHECKED_IN = 'ALREADY_CHECKED_IN',
@@ -38,8 +36,6 @@ export const CHECK_IN_ERROR_MESSAGES: Record<CheckInErrorCode, string> = {
     // 403
     [CheckInErrorCode.NOT_ATTENDEE]: 'Para poder hacer check-in, debes estar como asistente del evento',
     [CheckInErrorCode.EVENT_OVERLAPPED]: 'Este evento está superpuesto. Solo puede hacerse check-in en el evento primario',
-    [CheckInErrorCode.EVENT_MODIFIED_OVERLAPPED]: 'Este evento fue modificado y está superpuesto. Solo puede hacerse check-in en el evento primario',
-    [CheckInErrorCode.EVENT_NOT_STARTED]: 'No puedes hacer check-in antes del horario de inicio del evento',
     
     // 409
     [CheckInErrorCode.ALREADY_CHECKED_IN]: 'Este evento ya tiene el check-in realizado',
@@ -61,8 +57,6 @@ export const CHECK_IN_HTTP_STATUS: Record<CheckInErrorCode, number> = {
     // 403
     [CheckInErrorCode.NOT_ATTENDEE]: 403,
     [CheckInErrorCode.EVENT_OVERLAPPED]: 403,
-    [CheckInErrorCode.EVENT_MODIFIED_OVERLAPPED]: 403,
-    [CheckInErrorCode.EVENT_NOT_STARTED]: 403,
     
     // 409
     [CheckInErrorCode.ALREADY_CHECKED_IN]: 409,

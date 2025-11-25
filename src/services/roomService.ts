@@ -7,7 +7,6 @@ import eventService from "./eventService";
 import userService from "./userService";
 import currentEventService from "./currentEventService";
 class RoomService {
-
     async getAllRooms(): Promise<RoomResponseDTO[]> {
         const rooms = await Room.findAll();
         const currentEventIds = rooms
@@ -63,18 +62,7 @@ class RoomService {
             const event = eventMap.get(currentEventId);
             if (event && !event.deletedAt) {
                 const creatorName = creatorMap.get(event.creatorMail) || "Usuario desconocido";
-
                 currentEventDTO = mapEventToResponseDTO(event, creatorName, event.overlapStatus);
-
-            } else {
-                console.warn(
-                    `► [enrichRoomWithEvents] evento inválido detectado:` +
-                    `\n  tipo: ${event ? "eliminado" : "fantasma"}` +
-                    `\n  id evento: ${currentEventId}` +
-                    `\n  nombre evento: ${event?.title || "Sin nombre"}` +
-                    `\n  id sala: ${room.email}` +
-                    `\n  nombre sala: ${room.name || "Sin nombre"}`
-                );
             }
         }
 
@@ -115,8 +103,8 @@ class RoomService {
     async updateRoomStatus(roomEmail: string, currentEventId: string, isBusy: boolean): Promise<void> {
         const room = await Room.findOne({ where: { email: roomEmail } });
 
-        if(!room) return;
-        
+        if (!room) return;
+
         if (room) {
             await room.update({
                 is_busy: isBusy
@@ -125,7 +113,6 @@ class RoomService {
 
         if (isBusy) {
             await this.updateRoomCurrentEvent(roomEmail, currentEventId);
-            // @LOG
             console.log(
                 `► [RoomService] sala actualizada a ocupada:` +
                 `\n  id sala: ${roomEmail}` +
@@ -173,7 +160,7 @@ class RoomService {
                     `\n   evento: ${eventId}` +
                     `\n   startTime: ${event.startTime}`
                 );
-                return false; 
+                return false;
             }
         }
 

@@ -5,6 +5,7 @@ import eventService from '../services/eventService';
 import { mapResponseToEventDTO, mapUpdatedEvent } from '../utils/mappers/eventMapper';
 import { getCalendarSyncRange, getLocalTimestamp } from '../utils/dateUtils';
 import checkInService from './checkInService';
+import overlapService from './overlapService';
 
 // Servicio encargado de sincronizar eventos de Google Calendar con la base local.
 class CalendarSyncService {
@@ -76,7 +77,6 @@ class CalendarSyncService {
                 // Soft delete de eventos que ya no están en Google Calendar
                 for (const localEvent of localEvents) {
                     if (!eventIdsFromCalendar.includes(localEvent.id)) {
-                        // @LOG
                         console.log(
                             `► [CalendarSyncService] Evento` +
                             `\n  id: ${localEvent.id}` +
@@ -157,7 +157,6 @@ class CalendarSyncService {
                                 }
 
                                 if (hasRoomChange) {
-                                    // @LOG
                                     console.log(
                                         `► [CalendarSyncService] Evento` +
                                         `\n  id: ${event.id}` +
@@ -170,6 +169,12 @@ class CalendarSyncService {
                             }
 
                             if (hasTimeChanges) {
+                                overlapService.saveOriginalScheduleFromDTO(
+                                    eventSearched.id,
+                                    eventSearched.startTime,
+                                    eventSearched.endTime
+                                );
+
                                 updatedEvent.scheduleUpdatedAt = new Date();
                                 console.log(
                                     `► [CalendarSyncService] El evento` +
@@ -195,7 +200,6 @@ class CalendarSyncService {
                         // Restaura solo si estaba eliminado y ahora existe en calendar
                         if (eventSearched.deletedAt) {
                             await eventService.restoreEvent(event.id!);
-                            // @LOG
                             console.log(
                                 `► [CalendarSyncService] Evento restaurado: ` +
                                 `\n  id: ${event.id} ` +

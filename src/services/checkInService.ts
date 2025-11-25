@@ -7,39 +7,19 @@ import {
     CHECK_IN_ERROR_MESSAGES,
     CheckInResult,
 } from "../constants/checkInErrors";
-import { Room } from "../models";
 import nodemailerService from "./nodemailerService";
-
-const TEN_MINUTES_MS = 10 * 60 * 1000;
-export const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
-const REMINDER_WINDOW_MS = 2 * 60 * 1000;
+import { getEventTimestamps } from "../utils/checkInUtils";
 
 class CheckInService {
 
-    // Memoria en RAM de recordatorios ya enviados por evento+fecha+usuario (para evitar mails duplicados)
-    private sentReminders: Set<string> = new Set();
-
-    private getTimestamp(date: Date): number {
-        return new Date(date).getTime();
-    }
-
-    private getEventTimestamps(startTime: Date, endTime: Date) {
-        return {
-            start: this.getTimestamp(startTime),
-            end: this.getTimestamp(endTime),
-            tenMinutesBefore: this.getTimestamp(startTime) - TEN_MINUTES_MS,
-            fifteenMinutesAfterStart: this.getTimestamp(startTime) + FIFTEEN_MINUTES_MS
-        };
-    }
-
     private isEventInProgress(startTime: Date, endTime: Date, nowMs = Date.now()): boolean {
-        const { start, end } = this.getEventTimestamps(startTime, endTime);
+        const { start, end } = getEventTimestamps(startTime, endTime);
         return nowMs >= start && nowMs < end;
     }
 
     determineCheckInStatus(startTime: Date, endTime: Date, currentStatus?: CheckInStatus): CheckInStatus {
         const now = Date.now();
-        const { end, fifteenMinutesAfterStart, tenMinutesBefore } = this.getEventTimestamps(startTime, endTime);
+        const { end, fifteenMinutesAfterStart, tenMinutesBefore } = getEventTimestamps(startTime, endTime);
 
         if (currentStatus === CheckInStatus.CHECKED_IN) {
 
@@ -133,59 +113,20 @@ class CheckInService {
         }
 
         // Lógica de overlap para check-in
-        const overlapInfo = await overlapService.checkEventOverlapForCheckIn(
-            eventId,
+        const overlapResult = await overlapService.checkEventOverlapForCheckIn(
+            event,
             roomEmail,
-            event.startTime,
-            event.endTime
         );
 
-        if (overlapInfo.isOverlapping && !overlapInfo.isPrimary) {
-            const eventWasModified = overlapService.wasEventTimeModified(event);
+        if (!overlapResult.canCheckIn) {
+            const errorCode =
+                overlapResult.errorCode ?? CheckInErrorCode.EVENT_OVERLAPPED;
 
-            if (eventWasModified) {
-                return {
-                    success: false,
-                    errorCode: CheckInErrorCode.EVENT_MODIFIED_OVERLAPPED,
-                    message: CHECK_IN_ERROR_MESSAGES[CheckInErrorCode.EVENT_MODIFIED_OVERLAPPED]
-                };
-            }
-
-            const primaryEvent = await eventService.getEventById(overlapInfo.primaryEventId!);
-            if (primaryEvent) {
-                const primaryWasModified = overlapService.wasEventTimeModified(primaryEvent);
-
-                if (!primaryWasModified) {
-                    return {
-                        success: false,
-                        errorCode: CheckInErrorCode.EVENT_OVERLAPPED,
-                        message: CHECK_IN_ERROR_MESSAGES[CheckInErrorCode.EVENT_OVERLAPPED]
-                    };
-                }
-
-                const now = Date.now();
-                const eventStart = new Date(event.startTime).getTime();
-                const { tenMinutesBefore } = this.getEventTimestamps(event.startTime, event.endTime)
-
-                if (now < tenMinutesBefore) {
-                    console.log(
-                        `► [CheckInService] Evento con prioridad por overlap, ` +
-                        `pero aún no comenzó, se habilitará el check-in` +
-                        `\n  en su lapso correspondiente para:` +
-                        `\n  id del evento: ${eventId}` +
-                        `\n  estado: no modificado` +
-                        `\n  razón: prioridad por modificación del evento primario` +
-                        `\n  id evento primario: ${overlapInfo.primaryEventId}`
-                    );
-
-                    return {
-                        success: false,
-                        errorCode: CheckInErrorCode.EVENT_NOT_STARTED,
-                        message: `${CHECK_IN_ERROR_MESSAGES[CheckInErrorCode.EVENT_NOT_STARTED]} ` +
-                            `(${new Date(eventStart).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })})`
-                    };
-                }
-            }
+            return {
+                success: false,
+                errorCode,
+                message: CHECK_IN_ERROR_MESSAGES[errorCode],
+            };
         }
 
         // Check-in exitoso
@@ -231,7 +172,7 @@ class CheckInService {
             end,
             tenMinutesBefore,
             fifteenMinutesAfterStart,
-        } = this.getEventTimestamps(startTime, endTime);
+        } = getEventTimestamps(startTime, endTime);
 
         if (now >= end) {
             return {
@@ -255,58 +196,6 @@ class CheckInService {
         }
 
         return { canCheckIn: true };
-    }
-
-    async processCheckInEventsStatuses(room: Room): Promise<void> {
-        const events = await eventService.getEventsByRoomId(room.email);
-        const now = Date.now();
-
-        for (const event of events) {
-            const newStatus = this.determineCheckInStatus(
-                event.startTime,
-                event.endTime,
-                event.checkInStatus
-            );
-
-            const { tenMinutesBefore } = this.getEventTimestamps(event.startTime, event.endTime);
-            const isInReminderWindow =
-                now >= tenMinutesBefore &&
-                now < tenMinutesBefore + REMINDER_WINDOW_MS;
-
-            const reminderKey = `${event.id}-${event.startTime.toISOString().split("T")[0]}`;
-
-            // Aviso por email de 10 a 8 min antes del inicio del evento a toda la lista de attendees
-            if (isInReminderWindow && newStatus === CheckInStatus.PENDING) {
-                if (!this.sentReminders.has(reminderKey)) { // Para evitar envíos duplicados
-                    this.sentReminders.add(reminderKey);
-                    for (const attendee of event.attendees) {
-                        nodemailerService.sendNotificationEmail({
-                            type: 'CHECK_IN_REMINDER',
-                            userEmail: attendee.email,
-                            eventId: event.id,
-                            roomEmail: room.email,
-                        })
-                            .catch((error) => {
-                                console.error('[CheckInService] Falló envío de recordatorio de check-in:', error);
-                            });
-                    }
-                }
-            }
-
-            if (newStatus !== event.checkInStatus) {
-                await eventService.updateEventCheckInStatus(event.id, newStatus);
-
-                if (newStatus === CheckInStatus.EXPIRED) {
-                    // @LOG
-                    console.log(
-                        `► [CheckInService] Check-in expirado del evento:` +
-                        `\n  id evento: ${event.id}` +
-                        `\n  nombre evento: ${event.title || "Sin nombre"}` +
-                        `\n  acción: checkInStatus actualizado a ${newStatus}`
-                    );
-                }
-            }
-        }
     }
 }
 
