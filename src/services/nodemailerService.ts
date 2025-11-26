@@ -103,7 +103,7 @@ export class NodemailerService {
 
       return this.sendEmailInternal({
         to: user.email,
-        subject: `Recordatorio de check-in: "${eventNameClean}"`,        html,
+        subject: `Recordatorio de check-in: "${eventNameClean}"`, html,
       });
     } catch (error) {
       console.error(`[NodemailerService] Error enviando recordatorio de check-in: ${eventId}`, error);
