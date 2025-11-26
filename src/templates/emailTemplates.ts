@@ -20,6 +20,20 @@ interface CheckInSuccessParams extends BaseEventParams {
   checkInTime: string;
 }
 
+const COLORS = {
+  PRIMARY_DARK: '#1a2332',
+  PRIMARY_LIGHT: '#4bc3fe',
+  SECONDARY_DARK: '#2c3e50',
+  SECONDARY_LIGHT: '#34495e',
+  BACKGROUND: '#f4f4f4',
+  WHITE: '#ffffff',
+  GRAY_LIGHT: '#ecf0f1',
+  GRAY_MEDIUM: '#7f8c8d',
+  GRAY_DARK: '#333333',
+  TEXT_SECONDARY: '#7f8c8d',
+  BORDER_COLOR: '#3498db',
+} as const;
+
 const getBaseTemplate = (content: string): string => {
   return `
 <!DOCTYPE html>
@@ -33,23 +47,23 @@ const getBaseTemplate = (content: string): string => {
       margin: 0;
       padding: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f4f4f4;
+      background-color: ${COLORS.BACKGROUND};
     }
     .container {
       max-width: 600px;
       margin: 20px auto;
-      background-color: #ffffff;
+      background-color: ${COLORS.WHITE};
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .header {
-      background-color: #1a2332;
+      background-color: ${COLORS.PRIMARY_DARK};
       padding: 40px 30px;
       text-align: center;
     }
     .logo-text {
-      color: #4bc3fe;
+      color: ${COLORS.PRIMARY_LIGHT};
       font-size: 48px;
       font-weight: 700;
       margin: 0;
@@ -57,7 +71,7 @@ const getBaseTemplate = (content: string): string => {
       font-family: 'Arial', sans-serif;
     }
     .logo-subtitle {
-      color: #4bc3fe;
+      color: ${COLORS.PRIMARY_LIGHT};
       font-size: 14px;
       margin: 5px 0 0 0;
       letter-spacing: 3px;
@@ -65,11 +79,11 @@ const getBaseTemplate = (content: string): string => {
     }
     .content {
       padding: 40px 30px;
-      color: #333333;
+      color: ${COLORS.GRAY_DARK};
       line-height: 1.6;
     }
     .content h1 {
-      color: #2c3e50;
+      color: ${COLORS.SECONDARY_DARK};
       font-size: 24px;
       margin-top: 0;
     }
@@ -77,20 +91,25 @@ const getBaseTemplate = (content: string): string => {
       margin: 15px 0;
     }
     .highlight-box {
-      background-color: #ecf0f1;
-      border-left: 4px solid #3498db;
+      background-color: ${COLORS.GRAY_LIGHT};
+      border-left: 4px solid ${COLORS.BORDER_COLOR};
       padding: 15px;
       margin: 20px 0;
     }
     .footer {
-      background-color: #ecf0f1;
+      background-color: ${COLORS.GRAY_LIGHT};
       padding: 20px 30px;
       text-align: center;
       font-size: 12px;
-      color: #7f8c8d;
+      color: ${COLORS.GRAY_MEDIUM};
     }
     .footer p {
       margin: 5px 0;
+    }
+    .address {
+      color: ${COLORS.SECONDARY_LIGHT};
+      font-weight: 500;
+      margin: 10px 0;
     }
   </style>
 </head>
@@ -102,6 +121,7 @@ const getBaseTemplate = (content: string): string => {
     </div>
     ${content}
     <div class="footer">
+      <p class="address">📍 Santos Dumont 4088, Ciudad de Buenos Aires, Argentina</p>
       <p>Este es un correo automático, por favor no responder.</p>
       <p>© ${new Date().getFullYear()} Finnegans Salas. Todos los derechos reservados.</p>
       <p>Si no deseas recibir estos correos, contacta con el administrador del sistema.</p>
