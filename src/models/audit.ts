@@ -1,24 +1,15 @@
-import { DataTypes, Model, Optional } from 'sequelize';
+import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
+import { AuditAttributes, AuditCreationAttributes } from './audit.types';
+import { AuditAction } from '../constants/auditActions';
 
-interface AuditAttributes {
-  id?: number;
-  userEmail?: string | null;
-  action: string;
-  eventId?: string | null;
-  reason?: string | null;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-type AuditCreationAttributes = Optional<AuditAttributes, 'id' | 'userEmail' | 'eventId' | 'reason'>;
-
-class Audit extends Model<AuditAttributes, AuditCreationAttributes> implements AuditAttributes {
+export class Audit extends Model<AuditAttributes, AuditCreationAttributes> implements AuditAttributes {
   public id!: number;
   public userEmail!: string | null;
-  public action!: string;
-  public eventId!: string | null;  
-  public reason!: string | null;
+  public action!: AuditAction;
+  public eventId!: string | null;
+  public roomEmail!: string | null;
+  public info!: string | null;
 
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
@@ -28,8 +19,9 @@ Audit.init(
   {
     id: {
       type: DataTypes.BIGINT.UNSIGNED,
-      autoIncrement: true,
+      unique: true,
       primaryKey: true,
+      autoIncrement: true,
     },
     userEmail: {
       type: DataTypes.STRING(255),
@@ -39,11 +31,15 @@ Audit.init(
       type: DataTypes.STRING(100),
       allowNull: false,
     },
-    eventId: {                         
+    eventId: {
       type: DataTypes.STRING(255),
       allowNull: true,
     },
-    reason: {
+    roomEmail: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    info: {
       type: DataTypes.STRING(255),
       allowNull: true,
     },
@@ -65,5 +61,3 @@ Audit.init(
     timestamps: true,
   }
 );
-
-export default Audit;
