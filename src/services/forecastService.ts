@@ -28,51 +28,56 @@ class ForecastService {
      * ]
      */
     async getForecastsForRooms(roomEmail?: string): Promise<RoomHourlyForecastDTO[]> {
-        const whereClause: any = {};
+        try {
+            const whereClause: any = {};
 
-        if (roomEmail) {
-            whereClause.roomEmail = roomEmail;
-        }
-
-        const forecasts = await Forecast.findAll({
-            where: whereClause,
-            include: [{
-                model: Room,
-                as: 'room',
-                attributes: ['name'] // nombre de la sala
-            }],
-            order: [['roomEmail', 'ASC'], ['date', 'ASC']],
-        });
-
-        const grouped = new Map<string, {name: string, list: HourlyForecastDTO[]}>();
-
-        forecasts.forEach((forecast: any) => {
-
-            const currRoomName = forecast.room?.name || "Sala desconocida";
-
-            const record: HourlyForecastDTO = {
-                roomEmail: forecast.roomEmail,
-                date: forecast.date,
-                occupancyPredicted: forecast.occupancyPredicted,
-                lower: forecast.lower,
-                upper: forecast.upper,
-            };
-
-            if (!grouped.has(forecast.roomEmail)) {
-                grouped.set(forecast.roomEmail, {name: currRoomName, list: []});
+            if (roomEmail) {
+                whereClause.roomEmail = roomEmail;
             }
-            grouped.get(forecast.roomEmail)!.list.push(record);
-        });
 
-        const result: RoomHourlyForecastDTO[] = Array.from(grouped.entries()).map(
-            ([email, forecasts]) => ({
-                roomEmail: email,
-                roomName: forecasts.name,
-                forecasts: forecasts.list,
-            })
-        );
+            const forecasts = await Forecast.findAll({
+                where: whereClause,
+                include: [{
+                    model: Room,
+                    as: 'room',
+                    attributes: ['name'] // nombre de la sala
+                }],
+                order: [['roomEmail', 'ASC'], ['date', 'ASC']],
+            });
 
-        return result;
+            const grouped = new Map<string, {name: string, list: HourlyForecastDTO[]}>();
+
+            forecasts.forEach((forecast: any) => {
+
+                const currRoomName = forecast.room?.name || "Sala desconocida";
+
+                const record: HourlyForecastDTO = {
+                    roomEmail: forecast.roomEmail,
+                    date: forecast.date,
+                    occupancyPredicted: forecast.occupancyPredicted,
+                    lower: forecast.lower,
+                    upper: forecast.upper,
+                };
+
+                if (!grouped.has(forecast.roomEmail)) {
+                    grouped.set(forecast.roomEmail, {name: currRoomName, list: []});
+                }
+                grouped.get(forecast.roomEmail)!.list.push(record);
+            });
+
+            const result: RoomHourlyForecastDTO[] = Array.from(grouped.entries()).map(
+                ([email, forecasts]) => ({
+                    roomEmail: email,
+                    roomName: forecasts.name,
+                    forecasts: forecasts.list,
+                })
+            );
+
+            return result;
+        } catch (error) {
+            console.error(`[ForecastService] Error al obtener forecasts: ${roomEmail || 'todas las salas'}`, error);
+            throw error;
+        }
     }
 }
 
