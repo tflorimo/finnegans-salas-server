@@ -3,6 +3,7 @@ import { oauth2Client } from "../config/googleOAuth";
 import userService from "./userService";
 import jwtService from "./jwtService";
 import { ensureOAuthAccess } from "../config/oAuthAccess";
+import { auditService } from "./auditService";
 
 const oauth2 = google.oauth2("v2");
 
@@ -48,6 +49,11 @@ class AuthService {
     const frontendURL = process.env.FRONTEND_URL!;
     const queryParams = new URLSearchParams({
       success: "true",
+    });
+
+    // Registro de login exitoso en auditoría (no bloquea el flujo de autenticación)
+    auditService.recordLogin(user.email).catch((err) => {
+      console.error('[AuthService][audit] recordLogin failed:', err);
     });
 
     return {
