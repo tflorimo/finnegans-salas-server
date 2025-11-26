@@ -1,6 +1,7 @@
 import { google, Auth } from 'googleapis';
 import path from 'path';
 import roomService from '../services/roomService';
+import auditService from './auditService';
 import {
     updateRoomMapper,
     mapRoomResponseToRoomDTO,
@@ -23,16 +24,21 @@ class RoomResourceSyncService {
     }
 
     private async getAdminClient(adminEmail: string) {
-        const auth = new google.auth.GoogleAuth({
-            keyFile: this.SERVICE_ACCOUNT_FILE,
-            scopes: this.SCOPES,
-            clientOptions: {
-                subject: adminEmail,
-            },
-        });
+        try {
+            const auth = new google.auth.GoogleAuth({
+                keyFile: this.SERVICE_ACCOUNT_FILE,
+                scopes: this.SCOPES,
+                clientOptions: {
+                    subject: adminEmail,
+                },
+            });
 
-        const authClient = await auth.getClient();
-        return google.admin({ version: 'directory_v1', auth: authClient as Auth.JWT });
+            const authClient = await auth.getClient();
+            return google.admin({ version: 'directory_v1', auth: authClient as Auth.JWT });
+        } catch (error) {
+            console.error(`[RoomResourceSyncService] Error al obtener cliente admin: ${adminEmail}`, error);
+            throw error;
+        }
     }
 
     async syncRoomResources(adminEmail: string): Promise<void> {
@@ -46,10 +52,6 @@ class RoomResourceSyncService {
 
             const roomResources = response.data.items || [];
             if (!roomResources.length) {
-                console.log(
-                    `► [RoomResourceSyncService] sin room resources:` +
-                    `\n  no se encontraron recursos de salas en la API`
-                );
                 return;
             }
 
@@ -59,13 +61,10 @@ class RoomResourceSyncService {
             // Marca como eliminadas las rooms que ya no están en la API (soft delete)
             for (const localRoom of localRooms) {
                 if (!roomEmailsFromApi.includes(localRoom.email)) {
-                    console.log(
-                        `► [RoomResourceSyncService] sala eliminada de la API:` +
-                        `\n  id: ${localRoom.email}` +
-                        `\n  nombre: ${localRoom.name || "Sin nombre"}` +
-                        `\n  acción: marcando como deletedAt`
-                    );
                     await roomService.softDeleteRoom(localRoom.email);
+                    auditService.recordRoomDeleted(localRoom.email, localRoom.name).catch(err => {
+                        console.error('[RoomResourceSyncService][audit] recordRoomDeleted failed:', err);
+                    });
                 }
             }
 
@@ -79,11 +78,10 @@ class RoomResourceSyncService {
 
                     if (roomModel.deletedAt) {
                         await roomService.restoreRoom(resource.resourceEmail!);
-                        console.log(
-                            `► [RoomResourceSyncService] sala restaurada:` +
-                            `\n  id: ${resource.resourceEmail}` +
-                            `\n  nombre: ${resource.resourceName || "Sin nombre"}`
-                        );
+
+                        auditService.recordRoomRestored(resource.resourceEmail!, resource.resourceName).catch(err => {
+                            console.error('[RoomResourceSyncService][audit] recordRoomRestored failed:', err);
+                        });
                     }
 
                 } else {
@@ -93,11 +91,10 @@ class RoomResourceSyncService {
 
                     if (roomDTO) {
                         await roomService.upsertRoom(roomDTO);
-                        console.log(
-                            `► [RoomResourceSyncService] sala agregada a la base de datos:` +
-                            `\n  id: ${resource.resourceEmail}` +
-                            `\n  nombre: ${resource.resourceName || "Sin nombre"}`
-                        );
+
+                        auditService.recordRoomAdded(resource.resourceEmail!, resource.resourceName).catch(err => {
+                            console.error('[RoomResourceSyncService][audit] recordRoomAdded failed:', err);
+                        });
                     }
                 }
             }
