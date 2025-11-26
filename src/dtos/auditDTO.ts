@@ -3,7 +3,8 @@ export interface AuditDTO {
   userEmail: string | null;
   action: string;
   eventId: string | null;
-  reason: string | null;
+  roomEmail: string | null;
+  info: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
