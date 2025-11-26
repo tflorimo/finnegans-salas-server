@@ -28,8 +28,8 @@ export class JwtService {
     });
   }
 
-  generateRefreshToken(id: number): string {
-    return jwt.sign({ sub: id }, this.getRefreshSecret(), {
+  generateRefreshToken(id: number, email?: string): string {
+    return jwt.sign({ sub: id, email: email || null }, this.getRefreshSecret(), {
       expiresIn: this.REFRESH_TTL,
     });
   }
@@ -59,6 +59,11 @@ export class JwtService {
       return Number.isFinite(parsed) ? parsed : null;
     }
     return null;
+  }
+
+  extractEmail(payload: jwt.JwtPayload): string | null {
+    const { email } = payload;
+    return typeof email === "string" ? email : null;
   }
 
   decodeToken(token: string): jwt.JwtPayload | null {
