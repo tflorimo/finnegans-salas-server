@@ -3,7 +3,6 @@ import { SyncApiRoomResourcesJob } from "../jobs/syncApiRoomResources";
 import { SyncLocalResourcesJob } from "../jobs/syncLocalResources";
 import cronScheduler from "./cronScheduler";
 
-//@TODO: Agregar variables en .env para los tiempos de los cron jobs (para un manejo más sencillo)
 export const setupJobs = () => {
     const syncApiRoomResourcesJob = new SyncApiRoomResourcesJob();
     const syncCalendarEvents = new SyncCalendarEventsJob();
@@ -11,7 +10,7 @@ export const setupJobs = () => {
 
     cronScheduler.schedule({
         name: '[RoomResourcesSync]',
-        cronExpression: '* * * * *', // Cada minuto -> @TODO: Cambiar a semana en producción
+        cronExpression: process.env.CRON_ROOM_RESOURCES_SYNC || '0 0 */7 * *',
         task: async () => {
             await syncApiRoomResourcesJob.execute();
         },
@@ -20,7 +19,7 @@ export const setupJobs = () => {
 
     cronScheduler.schedule({
         name: '[CalendarEventsSync]',
-        cronExpression: '* * * * *', // Cada minuto 
+        cronExpression: process.env.CRON_CALENDAR_EVENTS_SYNC || '* * * * *',
         task: async () => {
             await syncCalendarEvents.execute();
         },
@@ -30,7 +29,7 @@ export const setupJobs = () => {
     // Job de limpieza: actualiza estado de salas según eventos activos
     cronScheduler.schedule({
         name: '[LocalSyncResources]',
-        cronExpression: '*/15 * * * * *', // Cada 15 segundos. @TODO: En producción colocar cada 30–60 segundos
+        cronExpression: process.env.CRON_LOCAL_RESOURCES_SYNC || '*/15 * * * * *',
         task: async () => {
             await syncLocalResourcesJob.execute();
         },
