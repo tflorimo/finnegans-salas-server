@@ -1,7 +1,8 @@
 import { Event } from "../models";
-import { OverlapStatus } from "../dtos/eventDTO";
+import { OverlapStatus } from "../constants/eventStatuses";
 import eventService from "./eventService";
 import overlapService from "./overlapService";
+import auditService from "./auditService";
 
 // Servicio dedicado a la sincronización local de overlapping
 class OverlapSyncService {
@@ -19,33 +20,35 @@ class OverlapSyncService {
      * no se solapen directamente.
      */
     private buildOverlapGroups(events: Event[]): Event[][] {
+        if (events.length <= 1) return events.length === 0 ? [] : [events];
+
+        const sorted = [...events].sort(
+            (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        );
+
         const groups: Event[][] = [];
-        const visited = new Set<string>();
+        let currentGroup: Event[] = [sorted[0]];
+        let currentGroupEnd = new Date(sorted[0].endTime).getTime();
 
-        for (const ev of events) {
-            if (!visited.has(ev.id)) {
+        for (let i = 1; i < sorted.length; i++) {
+            const ev = sorted[i];
+            const evStart = new Date(ev.startTime).getTime();
+            const evEnd = new Date(ev.endTime).getTime();
 
-                const group: Event[] = [];
-                const stack: Event[] = [ev];
-
-                while (stack.length > 0) {
-                    const current = stack.pop()!;
-                    if (!visited.has(current.id)) {
-
-                        visited.add(current.id);
-                        group.push(current);
-
-                        for (const other of events) {
-                            const shouldGroup =
-                                !visited.has(other.id) && overlapService.eventsOverlap(current, other);
-
-                            if (shouldGroup) stack.push(other);
-                        }
-                    }
+            if (evStart <= currentGroupEnd) {
+                currentGroup.push(ev);
+                if (evEnd > currentGroupEnd) {
+                    currentGroupEnd = evEnd;
                 }
-
-                if (group.length > 0) groups.push(group);
+            } else {
+                groups.push(currentGroup);
+                currentGroup = [ev];
+                currentGroupEnd = evEnd;
             }
+        }
+
+        if (currentGroup.length > 0) {
+            groups.push(currentGroup);
         }
 
         return groups;
@@ -64,14 +67,11 @@ class OverlapSyncService {
             const changed = await eventService.setEventOverlapStatus(ev.id, newStatus);
 
             if (changed) {
-                console.log(
-                    `► [OverlapSyncService] actualización de overlapStatus en grupo:` +
-                    `\n   id: ${ev.id}` +
-                    `\n   nombre: ${ev.title || "Sin nombre"}` +
-                    `\n   nuevo estado: ${newStatus}` +
-                    `\n   primario de grupo: ${primary.id}` +
-                    `\n   motivo: ${reason}`
-                );
+                if (newStatus === OverlapStatus.OVERLAPPED) {
+                    auditService.recordEventMarkedOverlap(ev.id, ev.title, reason).catch(err => {
+                        console.error('[OverlapSyncService][audit] recordEventMarkedOverlap failed:', err);
+                    });
+                }
             }
         }
     }
