@@ -4,6 +4,7 @@ import {
   getCheckInReminderTemplate,
   getCheckInSuccessTemplate,
 } from '../templates/emailTemplates';
+import { removeAccents } from '../utils/stringUtils';
 import userService from './userService';
 import eventService from './eventService';
 import roomService from './roomService';
@@ -43,27 +44,32 @@ export class NodemailerService {
       });
       return true;
     } catch (error) {
-      console.error('[NodemailerEmailService] Error enviando email', error);
+      console.error('[NodemailerEmailService] Error al enviar email', error);
       return false;
     }
   }
 
   private async sendUserCreated(userId: number): Promise<boolean> {
-    const user = await userService.findUserById(userId);
-    if (!user) return false;
+    try {
+      const user = await userService.findUserById(userId);
+      if (!user) return false;
 
-    const displayName = user.name ?? user.email;
-    const html = getUserCreatedTemplate({
-      userName: displayName,
-      userEmail: user.email,
-      role: user.role,
-    });
+      const displayName = user.name ?? user.email;
+      const html = getUserCreatedTemplate({
+        userName: displayName,
+        userEmail: user.email,
+        role: user.role,
+      });
 
-    return this.sendEmailInternal({
-      to: user.email,
-      subject: 'Bienvenido a Finnegans Salas',
-      html,
-    });
+      return this.sendEmailInternal({
+        to: user.email,
+        subject: 'Bienvenido a Finnegans Salas',
+        html,
+      });
+    } catch (error) {
+      console.error(`[NodemailerService] Error enviando email de usuario creado: ${userId}`, error);
+      throw error;
+    }
   }
 
   private async sendCheckInReminder(
@@ -71,33 +77,38 @@ export class NodemailerService {
     roomEmail: string,
     eventId: string
   ): Promise<boolean> {
-    const [user, event] = await Promise.all([
-      userService.findUserByEmail(userEmail),
-      eventService.getEventById(eventId),
-    ]);
-    if (!user || !event) return false;
+    try {
+      const [user, event] = await Promise.all([
+        userService.findUserByEmail(userEmail),
+        eventService.getEventById(eventId),
+      ]);
+      if (!user || !event) return false;
 
-    const room = await roomService.fetchRoom(roomEmail);
-    const displayName = user.name ?? user.email;
-    const eventName = event.title;
-    const roomName = room?.name ?? 'Sala';
-    const startTime = event.startTime.toLocaleString('es-AR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    });
+      const room = await roomService.fetchRoom(roomEmail);
+      const displayName = user.name ?? user.email;
+      const eventName = event.title;
+      const eventNameClean = removeAccents(event.title);
+      const roomName = room?.name ?? 'Sala';
+      const startTime = event.startTime.toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
 
-    const html = getCheckInReminderTemplate({
-      userName: displayName,
-      eventName,
-      roomName,
-      startTime,
-    });
+      const html = getCheckInReminderTemplate({
+        userName: displayName,
+        eventName,
+        roomName,
+        startTime,
+      });
 
-    return this.sendEmailInternal({
-      to: user.email,
-      subject: `Recordatorio de check-in: "${eventName}"`,
-      html,
-    });
+      return this.sendEmailInternal({
+        to: user.email,
+        subject: `Recordatorio de check-in: "${eventNameClean}"`, html,
+      });
+    } catch (error) {
+      console.error(`[NodemailerService] Error enviando recordatorio de check-in: ${eventId}`, error);
+      throw error;
+    }
   }
 
   private async sendCheckInSuccess(
@@ -106,33 +117,39 @@ export class NodemailerService {
     roomEmail: string,
     checkInTime: Date
   ): Promise<boolean> {
-    const [user, event] = await Promise.all([
-      userService.findUserByEmail(userEmail),
-      eventService.getEventById(eventId),
-    ]);
-    if (!user || !event) return false;
+    try {
+      const [user, event] = await Promise.all([
+        userService.findUserByEmail(userEmail),
+        eventService.getEventById(eventId),
+      ]);
+      if (!user || !event) return false;
 
-    const room = await roomService.fetchRoom(roomEmail);
-    const displayName = user.name ?? user.email;
-    const eventName = event.title;
-    const roomName = room?.name ?? 'Sala';
-    const checkInTimeText = checkInTime.toLocaleString('es-AR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    });
+      const room = await roomService.fetchRoom(roomEmail);
+      const displayName = user.name ?? user.email;
+      const eventName = event.title;
+      const eventNameClean = removeAccents(event.title);
+      const roomName = room?.name ?? 'Sala';
+      const checkInTimeText = checkInTime.toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
 
-    const html = getCheckInSuccessTemplate({
-      userName: displayName,
-      eventName,
-      roomName,
-      checkInTime: checkInTimeText,
-    });
+      const html = getCheckInSuccessTemplate({
+        userName: displayName,
+        eventName,
+        roomName,
+        checkInTime: checkInTimeText,
+      });
 
-    return this.sendEmailInternal({
-      to: user.email,
-      subject: `Check-in exitoso: "${eventName}"`,
-      html,
-    });
+      return this.sendEmailInternal({
+        to: user.email,
+        subject: `Check-in exitoso: "${eventNameClean}"`,
+        html,
+      });
+    } catch (error) {
+      console.error(`[NodemailerService] Error enviando confirmación de check-in: ${eventId}`, error);
+      throw error;
+    }
   }
 
   async sendNotificationEmail(input: NotificationInput): Promise<boolean> {

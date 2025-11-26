@@ -1,7 +1,7 @@
 import { DataTypes, Model, Optional } from "sequelize";
 import sequelize from "../config/database";
 import { Attendee, EventAttributes } from "./event.types";
-import { CheckInStatus, OverlapStatus } from "../dtos/eventDTO";
+import { CheckInStatus, OverlapStatus } from "../constants/eventStatuses";
 
 interface EventCreationAttributes extends Optional<EventAttributes, never> { }
 export class Event extends Model<EventAttributes, EventCreationAttributes> implements EventAttributes {

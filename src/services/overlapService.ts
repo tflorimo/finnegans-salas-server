@@ -51,13 +51,6 @@ class OverlapService {
                 cleanedCount++;
             }
         }
-
-        if (cleanedCount > 0) {
-            console.log(
-                `[OverlapService] Limpieza de horarios originales: ` +
-                `${cleanedCount} evento(s) finalizado(s) eliminado(s) del Map`
-            );
-        }
     }
 
     private doTimesOverlap(
@@ -169,12 +162,6 @@ class OverlapService {
             return { canCheckIn: true };
         }
 
-        console.log(
-            `► [OverlapService] Check-in bloqueado:` +
-            `\n   evento intentado: ${event.id} (${event.title})` +
-            `\n   primario en ventana actual: ${primary.id} (${primary.title})`
-        );
-
         return {
             canCheckIn: false,
             errorCode: CheckInErrorCode.EVENT_OVERLAPPED,
@@ -285,13 +272,13 @@ class OverlapService {
 
             if (allCandidatesNonModified && !hasAnyModified) {
                 reason =
-                    "grupo con todos NO modificados; prioridad por antigüedad/horario";
+                    "Prioridad por antigüedad/horario";
             } else if (allCandidatesNonModified && hasAnyModified) {
                 reason =
-                    "grupo con mezcla de modificados y no modificados; se priorizan los NO modificados";
+                    "Se priorizan los no modificados";
             } else {
                 reason =
-                    "grupo con candidatos protegidos por lock de prioridad frente a otros modificados";
+                    "Candidatos protegidos por lock de prioridad frente a otros modificados";
             }
 
             const primaryIsUnmodified = !this.wasEventTimeModified(primary);
@@ -306,7 +293,7 @@ class OverlapService {
             const ordered = this.evaluatePriority(events, now);
             primary = ordered[0];
             reason =
-                "grupo con todos modificados; prioridad por updatedAt/createdAt/startTime";
+                "Prioridad por updatedAt/createdAt/startTime";
         }
 
         return { primary, reason };

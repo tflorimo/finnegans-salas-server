@@ -1,5 +1,5 @@
 import { Room, Event } from "../models";
-import { CheckInStatus } from "../dtos/eventDTO";
+import { CheckInStatus } from "../constants/eventStatuses";
 import eventService from "./eventService";
 import roomService from "./roomService";
 import currentEventService from "./currentEventService";
@@ -11,26 +11,31 @@ class LocalStatusService {
 
     // Método principal para limpieza y actualización de estados de salas y eventos
     async cleanupLocalStatuses(): Promise<number> {
-        const rooms = await roomService.getAllRoomModels();
-        const now = new Date();
-        let changesCount = 0;
+        try {
+            const rooms = await roomService.getAllRoomModels();
+            const now = new Date();
+            let changesCount = 0;
 
-        for (const room of rooms) {
-            try {
-                const changes = await this.processLocalStatus(room, now);
-                changesCount += changes;
-            } catch (error) {
-                console.error(
-                    `► [LocalStatusService] error en sala:` +
-                    `\n  id sala: ${room.email}` +
-                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
-                    `\n  detalle del error:`,
-                    error
-                );
+            for (const room of rooms) {
+                try {
+                    const changes = await this.processLocalStatus(room, now);
+                    changesCount += changes;
+                } catch (error) {
+                    console.error(
+                        `► [LocalStatusService] error en sala:` +
+                        `\n  id sala: ${room.email}` +
+                        `\n  nombre sala: ${room.name || "Sin nombre"}` +
+                        `\n  detalle del error:`,
+                        error
+                    );
+                }
             }
-        }
 
-        return changesCount;
+            return changesCount;
+        } catch (error) {
+            console.error('[LocalStatusService] Error en limpieza de estados locales:', error);
+            throw error;
+        }
     }
 
     private async processLocalStatus(room: Room, now: Date): Promise<number> {
@@ -52,15 +57,6 @@ class LocalStatusService {
             const updated = await roomService.updateRoomCurrentEvent(room.email, newCurrentEventId);
 
             if (updated) {
-                console.log(
-                    `► [LocalStatusService] Evento en curso actualizado:` +
-                    `\n  id sala: ${room.email}` +
-                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
-                    `\n  Nuevo evento en curso:` +
-                    `\n  id evento: ${newCurrentEventId}` +
-                    `\n  nombre evento: ${eventChanged?.title || "Sin nombre"}`
-                );
-
                 changes++;
                 currentEventChanged = true;
             }
@@ -80,15 +76,6 @@ class LocalStatusService {
                 const cleared = await roomService.clearRoom(room.email);
 
                 if (cleared) {
-                    console.log(
-                        `► [LocalStatusService] sala sin eventos activos:` +
-                        `\n  id sala: ${room.email}` +
-                        `\n  nombre sala: ${room.name || "Sin nombre"}` +
-                        `\n  estado sala: is_busy=false` +
-                        `\n  currentEvent limpiado:` +
-                        `\n  id evento: ${originalCurrentEventId}`
-                    );
-
                     changes++;
                 }
 
@@ -103,19 +90,6 @@ class LocalStatusService {
             if (currentBusyStatus !== shouldBeBusy) {
                 await roomService.updateRoomBusyStatus(room.email, shouldBeBusy);
                 changes++;
-            }
-
-            if (shouldBeBusy) {
-                console.log(
-                    `► [LocalStatusService] sala ocupada:` +
-                    `\n  id sala: ${room.email}` +
-                    `\n  nombre sala: ${room.name || "Sin nombre"}` +
-                    `\n  estado sala: is_busy=true` +
-                    `\n  El evento se encuentra en curso` +
-                    `\n  id evento: ${newCurrentEventId}` +
-                    `\n  nombre evento: ${eventChanged?.title || "Sin nombre"}` +
-                    `\n  checkInStatus=${eventChanged?.checkInStatus || "Desconocido"}`
-                );
             }
         }
 

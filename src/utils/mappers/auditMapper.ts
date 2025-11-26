@@ -1,5 +1,5 @@
 import { AuditDTO } from '../../dtos/auditDTO';
-import Audit from '../../models/audit';
+import { Audit } from '../../models/audit';
 
 export const mapAuditToDTO = (audit: Audit): AuditDTO => {
   return {
@@ -7,7 +7,8 @@ export const mapAuditToDTO = (audit: Audit): AuditDTO => {
     userEmail: audit.userEmail ?? null,
     action: audit.action,
     eventId: audit.eventId ?? null,
-    reason: audit.reason ?? null,
+    roomEmail: audit.roomEmail ?? null,
+    info: audit.info ?? null,
     createdAt: new Date(audit.createdAt),
     updatedAt: new Date(audit.updatedAt),
   };

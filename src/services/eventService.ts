@@ -1,133 +1,205 @@
 import { Event, Room } from "../models";
-import { EventDTOResponse, CheckInStatus, EventCheckInDTO, OverlapStatus } from "../dtos/eventDTO";
+import { EventDTOResponse, EventCheckInDTO, EventListResponseDTO, EventListItemDTO } from "../dtos/eventDTO";
+import { CheckInStatus, OverlapStatus } from "../constants/eventStatuses";
 import { Attendee } from "../models/event.types";
-import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
+import { mapEventToResponseDTO, mapEventsToListItems, mapEventToListItem } from "../utils/mappers/eventMapper";
 import { getRemainingWeekRange } from "../utils/dateUtils";
+import { normalizePage, normalizePerPage, calculateOffset, calculateTotalPages } from "../utils/paginationUtils";
 import userService from "./userService";
+import roomService from "./roomService";
+import auditService from "./auditService";
 import { Op } from "sequelize";
+import { InternalServerError } from "../errors/AppError";
 
 const UNKNOWN_USER_NAME = "Usuario desconocido";
 class EventService {
+    async getAllEvents(queryParams?: any): Promise<EventListResponseDTO> {
+        try {
+            const page = normalizePage(queryParams?.page);
+            const perPage = normalizePerPage(queryParams?.perPage);
+            const offset = calculateOffset(page, perPage);
 
-    async getAllEvents(): Promise<EventDTOResponse[]> {
-        const eventos = await Event.findAll({
-            include: [{ model: Room, as: "room", attributes: ["name"] }],
-            paranoid: false,
-        });
+            const result = await Event.findAndCountAll({
+                paranoid: false,
+                limit: perPage,
+                offset,
+                order: [['createdAt', 'DESC']],
+            });
 
-        return this.mapWithCreatorNames(eventos);
+            const items = await this.enrichEventsWithRoomAndCreatorsNames(result.rows);
+
+            return {
+                items,
+                total: result.count,
+                page,
+                perPage,
+                totalPages: calculateTotalPages(result.count, perPage),
+            };
+        } catch (error) {
+            console.error('[EventService] Error al obtener eventos:', error);
+            throw new InternalServerError('Error al obtener eventos');
+        }
     }
 
     async getEventById(id: string | null | undefined): Promise<Event | null> {
-        if (!id) return null;
-        return Event.findByPk(id, { paranoid: false });
+        try {
+            if (!id) return null;
+            return await Event.findByPk(id, { paranoid: false });
+        } catch (error) {
+            console.error(`[EventService] Error al obtener evento por ID: ${id}`, error);
+            throw error;
+        }
     }
 
     async getEventsByIds(ids: string[]): Promise<Event[]> {
-        return Event.findAll({
-            where: { id: ids },
-            paranoid: true,
-        });
+        try {
+            return await Event.findAll({
+                where: { id: ids },
+                paranoid: true,
+            });
+        } catch (error) {
+            console.error('[EventService] Error al obtener eventos por IDs:', error);
+            throw error;
+        }
     }
 
     // Para el frontend: eventos de la semana actual
     async getEventsByRoomId(roomId: string): Promise<EventDTOResponse[]> {
-        const { start, end } = getRemainingWeekRange();
+        try {
+            const { start, end } = getRemainingWeekRange();
 
-        const eventos = await Event.findAll({
-            where: {
-                roomEmail: roomId,
-                startTime: { [Op.lt]: end },    // Para eventos entre ayer y hoy)
-                endTime: { [Op.gt]: start }
-            },
-            include: [{ model: Room, as: "room", attributes: ["name"] }],
-            paranoid: true,
-        });
+            const eventos = await Event.findAll({
+                where: {
+                    roomEmail: roomId,
+                    startTime: { [Op.lt]: end },    // Para eventos entre ayer y hoy)
+                    endTime: { [Op.gt]: start }
+                },
+                include: [{ model: Room, as: "room", attributes: ["name"] }],
+                paranoid: true,
+            });
 
-        return this.mapWithCreatorNamesAndOverlap(eventos);
+            return this.mapWithCreatorNamesAndOverlap(eventos);
+        } catch (error) {
+            console.error(`[EventService] Error al obtener eventos por sala: ${roomId}`, error);
+            throw error;
+        }
     }
 
     // Para el sync local: eventos activos en la semana actual
     async getActiveEventsByRoomId(roomId: string): Promise<Event[]> {
-        const { start, end } = getRemainingWeekRange();
+        try {
+            const { start, end } = getRemainingWeekRange();
 
-        return Event.findAll({
-            where: {
-                roomEmail: roomId,
-                startTime: { [Op.lte]: end },
-                endTime: { [Op.gte]: start }
-            },
-            paranoid: true,
-        });
+            return await Event.findAll({
+                where: {
+                    roomEmail: roomId,
+                    startTime: { [Op.lte]: end },
+                    endTime: { [Op.gte]: start }
+                },
+                paranoid: true,
+            });
+        } catch (error) {
+            console.error(`[EventService] Error al obtener eventos activos por sala: ${roomId}`, error);
+            throw error;
+        }
     }
 
     async getEventsByRoomIdWithTimeRange(roomId: string, startTime: Date, endTime: Date): Promise<Event[]> {
-        return Event.findAll({
-            where: {
-                roomEmail: roomId,
-                startTime: { [Op.lt]: endTime },     
-                endTime: { [Op.gt]: startTime }      
-            },
-            paranoid: true,
-        });
+        try {
+            return await Event.findAll({
+                where: {
+                    roomEmail: roomId,
+                    startTime: { [Op.lt]: endTime },     
+                    endTime: { [Op.gt]: startTime }      
+                },
+                paranoid: true,
+            });
+        } catch (error) {
+            console.error(`[EventService] Error al obtener eventos por sala y rango de tiempo: ${roomId}`, error);
+            throw error;
+        }
     }
 
     async upsertEvent(event: EventCheckInDTO): Promise<void> {
-        const hasRoomResource = event.attendees.some(attendee => attendee.resource);
+        try {
+            const hasRoomResource = event.attendees.some(attendee => attendee.resource);
 
-        if (!hasRoomResource) {
-            console.log(
-                `► [EventService] evento sin asistentes válidos (salas):` +
-                `\n  id evento: ${event.id}` +
-                `\n  nombre evento: ${event.title || "Sin nombre"}` +
-                `\n  acción: no se guardará`
-            );
-            return;
+            if (!hasRoomResource) {
+                return;
+            }
+
+            const existingEvent = await Event.findByPk(event.id);
+            const isCreation = !existingEvent;
+
+            await Event.upsert(event);
+
+            if (isCreation) {
+                const room = await roomService.fetchRoom(event.roomEmail);
+                const roomName = room?.name || null;
+                
+                auditService.recordEventCreated(event.id, event.title, roomName).catch(err => {
+                    console.error('[EventService][audit] recordEventCreated failed:', err);
+                });
+            } else {
+                auditService.recordEventUpdated(event.id, event.title).catch(err => {
+                    console.error('[EventService][audit] recordEventUpdated failed:', err);
+                });
+            }
+        } catch (error) {
+            console.error(`[EventService] Error al upsert evento: ${event.id}`, error);
+            throw error;
         }
-
-        await Event.upsert(event);
     }
 
     // Marca un evento como eliminado (soft delete)
     async softDeleteEvent(eventId: string): Promise<void> {
-        const event = await Event.findByPk(eventId);
-        if (event) {
-            await event.destroy();
+        try {
+            const event = await Event.findByPk(eventId);
+            if (event) {
+                await event.destroy();
+                auditService.recordEventDeleted(eventId, event.title, "evento eliminado del calendario").catch(err => {
+                    console.error('[EventService][audit] recordEventDeleted failed:', err);
+                });
+            }
+        } catch (error) {
+            console.error(`[EventService] Error al eliminar evento: ${eventId}`, error);
+            throw error;
         }
-    }
-
-    async restoreEvent(eventId: string): Promise<void> {
-        await Event.restore({ where: { id: eventId } });
-        console.log(
-            `► [EventService] evento restaurado:` +
-            `\n  id evento: ${eventId}`
-        );
     }
 
     async updateEventCheckInStatus(eventId: string, status: CheckInStatus): Promise<void> {
-
-        await Event.update(
-            { checkInStatus: status },
-            {
-                where: { id: eventId },
-                silent: true
-            }
-        );
+        try {
+            await Event.update(
+                { checkInStatus: status },
+                {
+                    where: { id: eventId },
+                    silent: true
+                }
+            );
+        } catch (error) {
+            console.error(`[EventService] Error al actualizar estado de check-in: ${eventId}`, error);
+            throw error;
+        }
     }
 
     async setEventOverlapStatus(eventId: string, newStatus: OverlapStatus): Promise<boolean> {
-        const event = await Event.findByPk(eventId);
-        if (!event) return false;
+        try {
+            const event = await Event.findByPk(eventId);
+            if (!event) return false;
 
-        if (event.overlapStatus === newStatus) {
-            return false;
+            if (event.overlapStatus === newStatus) {
+                return false;
+            }
+
+            event.overlapStatus = newStatus;
+
+            await event.save({ silent: true });
+
+            return true;
+        } catch (error) {
+            console.error(`[EventService] Error al actualizar estado de overlap: ${eventId}`, error);
+            throw error;
         }
-
-        event.overlapStatus = newStatus;
-
-        await event.save({ silent: true });
-
-        return true;
     }
 
     getEventCheckInStatus(event: Event): CheckInStatus {
@@ -146,7 +218,6 @@ class EventService {
         return event.get('endTime') as Date;
     }
 
-    // Helper compartido para los mappers
     private async buildCreatorMap(events: Event[]): Promise<Map<string, string>> {
         const uniqueCreatorEmails = [...new Set(events.map(event => event.creatorMail))];
         const creators = await userService.getUsersByEmails(uniqueCreatorEmails);
@@ -180,6 +251,25 @@ class EventService {
         );
 
         return eventDTOs;
+    }
+
+    private async enrichEventsWithRoomAndCreatorsNames(events: Event[]): Promise<EventListItemDTO[]> {
+        const uniqueRoomEmails = [...new Set(events.map(event => event.roomEmail))];
+        const roomPromises = uniqueRoomEmails.map(email => roomService.fetchRoom(email));
+        const rooms = await Promise.all(roomPromises);
+        const roomMap = new Map(
+            rooms
+                .filter((room): room is Room => room !== null)
+                .map(room => [room.email, room.name])
+        );
+
+        const creatorMap = await this.buildCreatorMap(events);
+
+        return events.map(event => ({
+            ...mapEventToListItem(event),
+            roomName: roomMap.get(event.roomEmail),
+            creatorName: creatorMap.get(event.creatorMail),
+        }));
     }
 }
 

@@ -1,12 +1,11 @@
 import eventService from "./eventService";
-import { CheckInStatus } from "../dtos/eventDTO";
+import { CheckInStatus } from "../constants/eventStatuses";
 import { Event } from "../models";
 import overlapService from "./overlapService";
 import { FIFTEEN_MINUTES_MS } from "../utils/checkInUtils";
 
 // Servicio para determinar evento activo, filtrar y definir estado del evento en curso de una sala
 class CurrentEventService {
-
     async findActiveEvents(roomEmail: string, now: Date): Promise<{ primaryEvent: Event; activeEvents: Event[] } | null> {
         const allEvents = await eventService.getActiveEventsByRoomId(roomEmail);
 

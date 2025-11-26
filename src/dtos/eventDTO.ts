@@ -1,15 +1,7 @@
-export type ResponseStatus = 'accepted' | 'declined' | 'tentative' | 'needsAction';
+import { ResponseStatus, OverlapStatus, CheckInStatus } from '../constants/eventStatuses';
+import { PaginatedResponse } from './paginationDTO';
+import { Attendee } from '../models/event.types';
 
-export enum OverlapStatus {
-  PRIMARY = "PRIMARY",
-  OVERLAPPED = "OVERLAPPED",
-}
-
-export enum CheckInStatus {
-    PENDING = 'pending',
-    CHECKED_IN = 'checked_in',
-    EXPIRED = 'expired'
-}
 export interface AttendeeDTO {
     email: string;
     responseStatus: ResponseStatus;
@@ -38,3 +30,21 @@ export interface EventDTOResponse extends EventCheckInDTO {
     creatorName: string;
     deletedAt?: Date | null;
 }
+
+export interface EventListItemDTO {
+  id: string;
+  title: string;
+  creatorMail: string;
+  creatorName?: string;
+  roomEmail: string;
+  roomName?: string;
+  startTime: Date;
+  endTime: Date;
+  checkInStatus: CheckInStatus;
+  overlapStatus: OverlapStatus;
+  attendees: Attendee[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EventListResponseDTO extends PaginatedResponse<EventListItemDTO> {}

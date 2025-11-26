@@ -11,6 +11,6 @@ router.use('/auth', authRoutes);
 router.use('/rooms', roomRoutes);
 router.use('/events', eventRoutes);
 router.use('/forecast', forecastRoutes);
-router.use('/audit', auditRoutes);
+router.use('/audits', auditRoutes);
 
 export default router;

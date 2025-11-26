@@ -1,10 +1,10 @@
 import {
     AttendeeDTO,
     EventDTOResponse,
-    CheckInStatus,
     EventCheckInDTO,
-    OverlapStatus
+    EventListItemDTO,
 } from "../../dtos/eventDTO";
+import { CheckInStatus, OverlapStatus } from "../../constants/eventStatuses";
 import { Event } from "../../models";
 import { EventAttributes } from "../../models/event.types";
 import { FIFTEEN_MINUTES_MS } from "../../utils/checkInUtils";
@@ -110,4 +110,26 @@ export function mapEventToResponseDTO(
         creatorName: creatorName,
         deletedAt: event.deletedAt,
     };
+}
+
+// Mapea un evento individual a EventListItemDTO para respuestas paginadas
+export function mapEventToListItem(event: Event): EventListItemDTO {
+    return {
+        id: event.id,
+        title: event.title,
+        creatorMail: event.creatorMail,
+        roomEmail: event.roomEmail,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        checkInStatus: event.checkInStatus,
+        overlapStatus: event.overlapStatus,
+        attendees: event.attendees,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+    };
+}
+
+// Mapea un array de eventos a EventListItemDTO para respuestas paginadas
+export function mapEventsToListItems(events: Event[]): EventListItemDTO[] {
+    return events.map(mapEventToListItem);
 }

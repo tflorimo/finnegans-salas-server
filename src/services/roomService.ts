@@ -5,6 +5,7 @@ import { mapRoomToRequestDTO } from "../utils/mappers/roomMapper";
 import { mapEventToResponseDTO } from "../utils/mappers/eventMapper";
 import eventService from "./eventService";
 import userService from "./userService";
+import auditService from "./auditService";
 import currentEventService from "./currentEventService";
 class RoomService {
     async getAllRooms(): Promise<RoomResponseDTO[]> {
@@ -71,16 +72,31 @@ class RoomService {
     }
 
     async upsertRoom(roomDTO: RoomDTO): Promise<void> {
-        await Room.upsert(roomDTO);
+        try {
+            await Room.upsert(roomDTO);
+        } catch (error) {
+            console.error(`[RoomService] Error al crear/actualizar sala: ${roomDTO.email}`, error);
+            throw error;
+        }
     }
 
     async getAllRoomEmails(): Promise<string[]> {
-        const rooms = await Room.findAll({ attributes: ['email'] });
-        return rooms.map(room => room.email);
+        try {
+            const rooms = await Room.findAll({ attributes: ['email'] });
+            return rooms.map(room => room.email);
+        } catch (error) {
+            console.error('[RoomService] Error al obtener emails de salas:', error);
+            throw error;
+        }
     }
 
     async getAllRoomModels(): Promise<Room[]> {
-        return Room.findAll();
+        try {
+            return Room.findAll();
+        } catch (error) {
+            console.error('[RoomService] Error al obtener modelos de salas:', error);
+            throw error;
+        }
     }
 
     getCurrentEventId(room: Room): string | null {
@@ -88,125 +104,169 @@ class RoomService {
     }
 
     async getRoomBusyStatus(roomEmail: string): Promise<boolean | null> {
-        const room = await Room.findByPk(roomEmail);
-        return room ? (room.get('is_busy') as boolean) : null;
+        try {
+            const room = await Room.findByPk(roomEmail);
+            return room ? (room.get('is_busy') as boolean) : null;
+        } catch (error) {
+            console.error(`[RoomService] Error al obtener estado de sala: ${roomEmail}`, error);
+            throw error;
+        }
     }
 
     async reloadRoom(room: Room): Promise<void> {
-        await room.reload();
+        try {
+            await room.reload();
+        } catch (error) {
+            console.error(`[RoomService] Error al recargar sala: ${room.email}`, error);
+            throw error;
+        }
     }
 
     async updateRoomBusyStatus(roomEmail: string, isBusy: boolean): Promise<void> {
-        await Room.update({ is_busy: isBusy }, { where: { email: roomEmail } });
+        try {
+            const room = await Room.findByPk(roomEmail);
+            if (!room) return;
+
+            await Room.update({ is_busy: isBusy }, { where: { email: roomEmail } });
+
+            if (isBusy) {
+                auditService.recordRoomBusy(roomEmail, room.current_event, null, room.name).catch(err => {
+                    console.error('[RoomService][audit] recordRoomBusy failed:', err);
+                });
+            } else {
+                auditService.recordRoomAvailable(roomEmail, room.name).catch(err => {
+                    console.error('[RoomService][audit] recordRoomAvailable failed:', err);
+                });
+            }
+        } catch (error) {
+            console.error(`[RoomService] Error al actualizar estado busy de sala: ${roomEmail}`, error);
+            throw error;
+        }
     }
 
     async updateRoomStatus(roomEmail: string, currentEventId: string, isBusy: boolean): Promise<void> {
-        const room = await Room.findOne({ where: { email: roomEmail } });
+        try {
+            const room = await Room.findOne({ where: { email: roomEmail } });
 
-        if (!room) return;
+            if (!room) {
+                console.warn(`[RoomService] Sala no encontrada: ${roomEmail}`);
+                return;
+            }
 
-        if (room) {
-            await room.update({
-                is_busy: isBusy
-            });
-        }
+            await room.update({ is_busy: isBusy });
 
-        if (isBusy) {
-            await this.updateRoomCurrentEvent(roomEmail, currentEventId);
-            console.log(
-                `► [RoomService] sala actualizada a ocupada:` +
-                `\n  id sala: ${roomEmail}` +
-                `\n  estado sala: is_busy=true` +
-                `\n  id evento actual: ${currentEventId}`
-            );
+            if (isBusy) {
+                await this.updateRoomCurrentEvent(roomEmail, currentEventId);
+                const event = await eventService.getEventById(currentEventId);
+                auditService.recordRoomBusy(roomEmail, currentEventId, event?.title, room.name).catch(err => {
+                    console.error('[RoomService][audit] recordRoomBusy failed:', err);
+                });
+            }
+
+        } catch (error) {
+            console.error(`[RoomService] Error al actualizar estado de sala: ${roomEmail}`, error);
+            throw error;
         }
     }
 
     async clearRoom(roomEmail: string): Promise<boolean> {
-        const [affected] = await Room.update(
-            { current_event: null, is_busy: false },
-            { where: { email: roomEmail } }
-        );
+        try {
+            const room = await Room.findByPk(roomEmail);
+            const [affected] = await Room.update(
+                { current_event: null, is_busy: false },
+                { where: { email: roomEmail } }
+            );
 
-        return affected > 0;
+            if (affected > 0) {
+                auditService.recordRoomAvailable(roomEmail, room?.name).catch(err => {
+                    console.error('[RoomService][audit] recordRoomAvailable failed:', err);
+                });
+            }
+
+            return affected > 0;
+        } catch (error) {
+            console.error(`[RoomService] Error al limpiar sala: ${roomEmail}`, error);
+            throw error;
+        }
     }
 
     async updateRoomCurrentEvent(roomEmail: string, eventId: string | null): Promise<boolean> {
-        const room = await Room.findByPk(roomEmail);
-        if (!room) {
-            return false;
-        }
-
-        if (eventId) {
-            const event = await eventService.getEventById(eventId);
-            if (!event || event.deletedAt) {
-                console.warn(
-                    `► [RoomService] intento de asignación inválida de currentEvent:` +
-                    `\n   id evento: ${eventId}` +
-                    `\n   nombre evento: ${event?.title || "Sin nombre"}` +
-                    `\n   estado evento: ${event ? "eliminado" : "inexistente"}` +
-                    `\n   para la sala:` +
-                    `\n   id sala: ${roomEmail}` +
-                    `\n   nombre sala: ${room?.name || "Sin nombre"}`
-                );
+        try {
+            const room = await Room.findByPk(roomEmail);
+            if (!room) {
                 return false;
             }
 
-            const started = await currentEventService.isCurrentEventStarted(eventId);
-            if (!started) {
-                console.log(
-                    `► [RoomService] currentEvent no actualizado porque el evento aún no comenzó:` +
-                    `\n   sala: ${roomEmail}` +
-                    `\n   evento: ${eventId}` +
-                    `\n   startTime: ${event.startTime}`
-                );
+            if (eventId) {
+                const event = await eventService.getEventById(eventId);
+                if (!event || event.deletedAt) {
+                    return false;
+                }
+
+                const started = await currentEventService.isCurrentEventStarted(eventId);
+                if (!started) {
+                    return false;
+                }
+            }
+
+            const currentEvent = this.getCurrentEventId(room);
+
+            if (currentEvent === eventId) {
                 return false;
             }
-        }
 
-        const currentEvent = this.getCurrentEventId(room);
+            if (currentEvent) {
+                if (await currentEventService.isCurrentEventEnded(currentEvent)) {
+                    await room.update({
+                        current_event: null,
+                        is_busy: false
+                    });
+                    return true;
+                }
+            }
 
-        if (currentEvent === eventId) {
-            return false;
-        }
-
-        if (currentEvent) {
-            if (await currentEventService.isCurrentEventEnded(currentEvent)) {
+            if (currentEvent !== eventId) {
                 await room.update({
-                    current_event: null,
-                    is_busy: false
+                    current_event: eventId
                 });
                 return true;
             }
-        }
 
-        if (currentEvent !== eventId) {
-            await room.update({
-                current_event: eventId
-            });
-            return true;
+            return false;
+        } catch (error) {
+            console.error(`[RoomService] Error al actualizar evento actual de sala: ${roomEmail}`, error);
+            throw error;
         }
-
-        return false;
     }
 
     async fetchRoom(id: string): Promise<Room | null> {
-        const room = await Room.findByPk(id, { paranoid: false });
-        if (!room) {
-            return null;
+        try {
+            const room = await Room.findByPk(id, { paranoid: false });
+            return room;
+
+        } catch (error) {
+            console.error(`[RoomService] Error al obtener sala: ${id}`, error);
+            throw error;
         }
-        return room;
     }
 
     async softDeleteRoom(roomEmail: string): Promise<void> {
-        const room = await Room.findByPk(roomEmail);
-        if (room) {
-            await room.destroy();
+        try {
+            const room = await Room.findByPk(roomEmail);
+            if (room) await room.destroy();
+        } catch (error) {
+            console.error(`[RoomService] Error al eliminar sala: ${roomEmail}`, error);
+            throw error;
         }
     }
 
     async restoreRoom(roomEmail: string): Promise<void> {
-        await Room.restore({ where: { email: roomEmail } });
+        try {
+            await Room.restore({ where: { email: roomEmail } });
+        } catch (error) {
+            console.error(`[RoomService] Error al restaurar sala: ${roomEmail}`, error);
+            throw error;
+        }
     }
 }
 
