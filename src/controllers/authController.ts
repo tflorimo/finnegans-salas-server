@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import authService from "../services/authService";
 import jwtService from "../services/jwtService";
 import userService from "../services/userService";
@@ -10,7 +10,8 @@ import {
 } from "../config/authCookies";
 import { isOAuthAccessDeniedError } from "../config/oAuthAccess";
 import { buildFrontendCallbackUrl } from "../utils/frontendRedirect";
-import { auditService } from "../services/auditService";
+import auditService from "../services/auditService";
+import { UnauthorizedError } from "../errors/AppError";
 
 class AuthController {
   authRedirect = (_: Request, res: Response): void => {
@@ -32,87 +33,77 @@ class AuthController {
     try {
       const { accessToken, refreshToken, redirectUrl } = await authService.processOAuthCallback(code);
 
+      clearRefreshCookie(res);
       setRefreshCookie(res, refreshToken);
       setTempAccessCookie(res, accessToken);
 
       res.redirect(302, redirectUrl);
     } catch (error) {
-
-
-      // se busca el email en la query
       const attemptedEmail = typeof req.query.email === 'string' ? req.query.email : null;
 
+      let errorMessage = 'OAUTH_FAILED';
       if (isOAuthAccessDeniedError(error)) {
-        // registro de login fallido en auditoría (no bloquea el flujo)
-        auditService.recordLoginFailed(attemptedEmail, error.reason).catch(err => {
-          console.error('[AuthController][audit] recordLoginFailed failed:', err);
-        });
-
-        console.warn(
-          `[AuthController] ⚠️  Intento de inicio de sesión rechazado\n` +
-          `  Razón: ${error.reason}\n` +
-          `  Email: ${req.query.email || 'desconocido'}\n` +
-          `  Timestamp: ${new Date().toISOString()}`
-        );
-
-        const redirectUrl = buildFrontendCallbackUrl({
-          success: "false",
-          message: error.reason,
-        });
-        res.redirect(302, redirectUrl);
-        return;
+        errorMessage = error.reason;
       }
 
-      // registro de login fallido en auditoría (no bloquea el flujo)
-      auditService.recordLoginFailed(attemptedEmail, (error as Error).message || 'OAUTH_FAILED').catch(err => {
+      // Registro de login fallido en auditoría 
+      auditService.recordLoginFailed(attemptedEmail, errorMessage, null).catch(err => {
         console.error('[AuthController][audit] recordLoginFailed failed:', err);
       });
 
       const redirectUrl = buildFrontendCallbackUrl({
         success: "false",
-        message: "oauth_failed",
+        message: errorMessage,
       });
       res.redirect(302, redirectUrl);
     }
   };
 
-  refresh = async (req: Request, res: Response): Promise<void> => {
-    const refreshToken = req.cookies?.[refreshCookieName];
-    if (!refreshToken) {
-      res.status(401).json({ code: "no_refresh" });
-      return;
-    }
-
+  refresh = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const refreshToken = req.cookies?.[refreshCookieName];
+      if (!refreshToken) {
+        throw new UnauthorizedError("Token de refresco no proporcionado");
+      }
+
       const payload = jwtService.verifyRefresh(refreshToken);
       const userId = jwtService.extractSubjectId(payload);
+      const tokenEmail = jwtService.extractEmail(payload);
 
       if (!userId) {
-        res.status(401).json({ code: "refresh_invalid" });
-        return;
+        throw new UnauthorizedError("Token de refresco inválido");
       }
 
       const user = await userService.findUserById(userId);
       if (!user) {
-        res.status(401).json({ code: "user_not_found" });
-        return;
+        throw new UnauthorizedError("Usuario no encontrado");
+      }
+
+      if (tokenEmail && tokenEmail !== user.email) {
+        throw new UnauthorizedError("Token de refresco no corresponde a este usuario");
       }
 
       const accessToken = jwtService.generateAccessToken(user.id, user.email, user.role);
-      const newRefreshToken = jwtService.generateRefreshToken(user.id);
+      const newRefreshToken = jwtService.generateRefreshToken(user.id, user.email);
 
       setRefreshCookie(res, newRefreshToken);
       res.status(200).json({ accessToken });
     } catch (error) {
-      res.status(401).json({ code: "refresh_invalid" });
+      next(error);
     }
   };
 
-  logout = (req: Request, res: Response): void => {
-    // se cambia a req para obtener el email del usuario autenticado
+  logout = async (req: Request, res: Response): Promise<void> => {
     const userEmail = (req as any).user?.email ?? null;
-    // registro de logout en auditoría (no bloquea el flujo)
-    auditService.recordLogout(userEmail).catch(err => {
+    
+    let userName: string | null = null;
+    if (userEmail) {
+      const user = await userService.findUserByEmail(userEmail);
+      userName = user?.name ?? null;
+    }
+    
+    // registro de logout en auditoría 
+    auditService.recordLogout(userEmail, userName).catch(err => {
       console.error('[AuthController][audit] recordLogout failed:', err);
     });
 

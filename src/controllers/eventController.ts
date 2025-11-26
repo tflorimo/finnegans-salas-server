@@ -1,17 +1,13 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import eventService from '../services/eventService';
 
 class EventController {
-    async getAllEvents(_req: Request, res: Response): Promise<void> {
+    async getAllEvents(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const events = await eventService.getAllEvents();
-            res.status(200).json(events);
+            const response = await eventService.getAllEvents(req.query);
+            res.status(200).json(response);
         } catch (error) {
-            console.error('[EventController] [getAllEvents]', error);
-            res.status(500).json({
-                message: 'Error obteniendo eventos',
-                error: error instanceof Error ? error.message : 'Error desconocido'
-            });
+            next(error);
         }
     }
 }

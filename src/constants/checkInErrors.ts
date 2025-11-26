@@ -1,10 +1,3 @@
-export interface CheckInResult {
-    success: boolean;
-    event?: any;
-    errorCode?: CheckInErrorCode;
-    message?: string;
-}
-
 export enum CheckInErrorCode {
     // 404 - Not Found
     ROOM_NOT_FOUND = 'ROOM_NOT_FOUND',

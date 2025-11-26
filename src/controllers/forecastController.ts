@@ -1,8 +1,8 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import ForecastService from "../services/forecastService";
 
 class ForecastController {
-    async fetchForecast(req: Request, res: Response): Promise<void> {
+    async fetchForecast(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             const { roomEmail } = req.query;
 
@@ -14,11 +14,8 @@ class ForecastController {
                 success: true,
                 data: forecasts,
             });
-        } catch (error: any) {
-            res.status(500).json({
-                success: false,
-                message: error.message || "Error al obtener pronósticos",
-            });
+        } catch (error) {
+            next(error);
         }
     }
 }
