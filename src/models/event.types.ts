@@ -1,4 +1,4 @@
-import { ResponseStatus, CheckInStatus, OverlapStatus } from "../dtos/eventDTO";
+import { ResponseStatus, CheckInStatus, OverlapStatus } from "../constants/eventStatuses";
 export interface Attendee {
     email: string;
     responseStatus: ResponseStatus;
