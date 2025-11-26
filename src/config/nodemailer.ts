@@ -14,42 +14,53 @@ class NodemailerConfig {
   private gmail: any;
 
   constructor() {
-    const auth = new google.auth.GoogleAuth({
-      keyFile: SERVICE_ACCOUNT_FILE,
-      scopes: ['https://www.googleapis.com/auth/gmail.send'],
-      clientOptions: {
-        subject: ADMIN_ACCOUNT_IMPERSONATE,
-      },
-    });
+    try {
+      const auth = new google.auth.GoogleAuth({
+        keyFile: SERVICE_ACCOUNT_FILE,
+        scopes: ['https://www.googleapis.com/auth/gmail.send'],
+        clientOptions: {
+          subject: ADMIN_ACCOUNT_IMPERSONATE,
+        },
+      });
 
-    this.gmail = google.gmail({ version: 'v1', auth });
+      this.gmail = google.gmail({ version: 'v1', auth });
+    } catch (error) {
+      console.error('[NodemailerConfig] Error al inicializar configuración de Gmail:', error);
+      throw error;
+    }
   }
 
   async sendEmail(params: EmailParams): Promise<void> {
-    const { to, subject, html } = params;
+    try {
+      const { to, subject, html } = params;
 
-    const message = [
-      `From: ${ADMIN_ACCOUNT_IMPERSONATE}`,
-      `To: ${to}`,
-      `Subject: ${subject}`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/html; charset=utf-8',
-      '',
-      html,
-    ].join('\n');
+      const message = [
+        `From: ${ADMIN_ACCOUNT_IMPERSONATE}`,
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=utf-8',
+        'Content-Transfer-Encoding: 7bit',
+        '',
+        html,
+      ].join('\n');
 
-    const encodedMessage = Buffer.from(message)
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+      const encodedMessage = Buffer.from(message)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
 
-    await this.gmail.users.messages.send({
-      userId: 'me',
-      requestBody: {
-        raw: encodedMessage,
-      },
-    });
+      await this.gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: encodedMessage,
+        },
+      });
+    } catch (error) {
+      console.error('[NodemailerConfig] Error al enviar email:', error);
+      throw error;
+    }
   }
 
   async verifyEmailConnection(): Promise<boolean> {
