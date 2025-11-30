@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, Sequelize } from 'sequelize';
 
 export const normalizePage = (page?: number): number => {
   return Math.max(1, page ?? 1);
@@ -28,12 +28,38 @@ export const buildDateRangeFilter = (startDate?: string, endDate?: string): any 
 export const buildAuditFilters = (queryParams: any): any => {
   const where: any = {};
 
-  if (queryParams.action) where.action = String(queryParams.action);
-  if (queryParams.info) where.info = String(queryParams.info);
-  if (queryParams.userEmail) where.userEmail = String(queryParams.userEmail);
+  if (queryParams.searchKey && queryParams.searchValue) {
+    if (queryParams.searchKey === 'info') {
+      const raw = String(queryParams.searchValue).trim();
+      const likeValue = `%${raw.toLowerCase()}%`;
 
-  const dateFilter = buildDateRangeFilter(queryParams.startDate, queryParams.endDate);
-  if (dateFilter) where.createdAt = dateFilter;
+      where[Op.and] = Sequelize.where(
+        Sequelize.fn('LOWER', Sequelize.col('info')),
+        { [Op.like]: likeValue }
+      );
+    } else {
+      where[queryParams.searchKey] = String(queryParams.searchValue);
+    }
+  };
+
+  return where;
+};
+
+export const buildEventFilters = (queryParams: any): any => {
+  const where: any = {};
+
+  if (queryParams.searchKey && queryParams.searchValue) {
+    if (queryParams.searchKey === 'title') {
+      const raw = String(queryParams.searchValue).trim();
+      const likeValue = `%${raw.toLowerCase()}%`;
+      where[Op.and] = Sequelize.where(
+        Sequelize.fn('LOWER', Sequelize.col('title')),
+        { [Op.like]: likeValue }
+      );
+    } else {
+      where[queryParams.searchKey] = String(queryParams.searchValue);
+    }
+  };
 
   return where;
 };

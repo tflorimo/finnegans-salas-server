@@ -1,15 +1,15 @@
-import { Event, Room } from "../models";
-import { EventDTOResponse, EventCheckInDTO, EventListResponseDTO, EventListItemDTO } from "../dtos/eventDTO";
-import { CheckInStatus, OverlapStatus } from "../constants/eventStatuses";
-import { Attendee } from "../models/event.types";
-import { mapEventToResponseDTO, mapEventsToListItems, mapEventToListItem } from "../utils/mappers/eventMapper";
-import { getRemainingWeekRange } from "../utils/dateUtils";
-import { normalizePage, normalizePerPage, calculateOffset, calculateTotalPages } from "../utils/paginationUtils";
-import userService from "./userService";
-import roomService from "./roomService";
-import auditService from "./auditService";
 import { Op } from "sequelize";
+import { CheckInStatus, OverlapStatus } from "../constants/eventStatuses";
+import { EventCheckInDTO, EventDTOResponse, EventListItemDTO, EventListResponseDTO } from "../dtos/eventDTO";
 import { InternalServerError } from "../errors/AppError";
+import { Event, Room } from "../models";
+import { Attendee } from "../models/event.types";
+import { getRemainingWeekRange } from "../utils/dateUtils";
+import { mapEventToListItem, mapEventToResponseDTO } from "../utils/mappers/eventMapper";
+import { buildEventFilters, calculateOffset, calculateTotalPages, normalizePage, normalizePerPage } from "../utils/paginationUtils";
+import auditService from "./auditService";
+import roomService from "./roomService";
+import userService from "./userService";
 
 const UNKNOWN_USER_NAME = "Usuario desconocido";
 class EventService {
@@ -18,8 +18,10 @@ class EventService {
             const page = normalizePage(queryParams?.page);
             const perPage = normalizePerPage(queryParams?.perPage);
             const offset = calculateOffset(page, perPage);
+            const where = buildEventFilters(queryParams);
 
             const result = await Event.findAndCountAll({
+                where,
                 paranoid: false,
                 limit: perPage,
                 offset,
@@ -109,8 +111,8 @@ class EventService {
             return await Event.findAll({
                 where: {
                     roomEmail: roomId,
-                    startTime: { [Op.lt]: endTime },     
-                    endTime: { [Op.gt]: startTime }      
+                    startTime: { [Op.lt]: endTime },
+                    endTime: { [Op.gt]: startTime }
                 },
                 paranoid: true,
             });
@@ -136,7 +138,7 @@ class EventService {
             if (isCreation) {
                 const room = await roomService.fetchRoom(event.roomEmail);
                 const roomName = room?.name || null;
-                
+
                 auditService.recordEventCreated(event.id, event.title, roomName).catch(err => {
                     console.error('[EventService][audit] recordEventCreated failed:', err);
                 });
