@@ -3,10 +3,9 @@ import path from 'path';
 import roomService from '../services/roomService';
 import eventService from '../services/eventService';
 import { mapResponseToEventDTO, mapUpdatedEvent } from '../utils/mappers/eventMapper';
-import { getCalendarSyncRange, getLocalTimestamp } from '../utils/dateUtils';
+import { getCalendarSyncRange } from '../utils/dateUtils';
 import checkInService from './checkInService';
 import overlapService from './overlapService';
-import auditService from './auditService';
 
 // Servicio encargado de sincronizar eventos de Google Calendar con la base local.
 class CalendarSyncService {
