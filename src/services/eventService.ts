@@ -232,15 +232,6 @@ class EventService {
         );
     }
 
-    private async mapWithCreatorNames(events: Event[]): Promise<EventDTOResponse[]> {
-        const creatorMap = await this.buildCreatorMap(events);
-
-        return events.map(event => {
-            const creatorName = creatorMap.get(event.creatorMail) || UNKNOWN_USER_NAME;
-            return mapEventToResponseDTO(event, creatorName, event.overlapStatus);
-        });
-    }
-
     private async mapWithCreatorNamesAndOverlap(events: Event[]): Promise<EventDTOResponse[]> {
         const creatorMap = await this.buildCreatorMap(events);
 

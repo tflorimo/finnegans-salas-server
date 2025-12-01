@@ -3,9 +3,64 @@ import { AuditListResponseDTO } from '../dtos/auditDTO';
 import { InternalServerError } from '../errors/AppError';
 import { Audit } from "../models";
 import { mapAuditsToDTO } from '../utils/mappers/auditMapper';
-import { buildAuditFilters, calculateOffset, calculateTotalPages, normalizePage, normalizePerPage } from '../utils/paginationUtils';
+import {
+  buildAuditFilters,
+  calculateOffset,
+  calculateTotalPages,
+  normalizePage,
+  normalizePerPage
+} from '../utils/paginationUtils';
 
 class AuditService {
+  // Helpers privados para construir textos de detalles
+  private buildUserLabel(userEmail?: string | null, userName?: string | null): string {
+    return `Usuario: ${userName || userEmail}`;
+  }
+
+  private buildUserWithReasonLabel(
+    userEmail?: string | null,
+    userName?: string | null,
+    info?: string | null
+  ): string {
+    return `${this.buildUserLabel(userEmail, userName)}${info ? `, Razón: ${info}` : ''}`;
+  }
+
+  private buildEventLabel(eventTitle?: string | null): string {
+    return `Evento: ${eventTitle || 'Sin título'}`;
+  }
+
+  private buildEventWithRoomLabel(
+    eventTitle?: string | null,
+    roomName?: string | null
+  ): string {
+    return (
+      this.buildEventLabel(eventTitle) +
+      `${roomName ? `, Sala: ${roomName}` : ''}`
+    );
+  }
+
+  private buildEventWithInfoLabel(
+    eventTitle?: string | null,
+    info?: string | null
+  ): string {
+    return `${this.buildEventLabel(eventTitle)}${info ? `, ${info}` : ''}`;
+  }
+
+  private buildRoomLabel(roomEmail: string, roomName?: string | null): string {
+    return `Sala: ${roomName || roomEmail}`;
+  }
+
+  private buildRoomBusyLabel(
+    roomEmail: string,
+    roomName?: string | null,
+    eventTitle?: string | null
+  ): string {
+    return (
+      this.buildRoomLabel(roomEmail, roomName) +
+      `${eventTitle ? `, Evento: ${eventTitle}` : ''}`
+    );
+  }
+
   // Método genérico para registrar eventos de auditoría
   async record(
     action: AuditAction,
@@ -29,17 +84,21 @@ class AuditService {
 
   // ======= Auditorías de login/logout =======
   async recordLogin(userEmail?: string | null, userName?: string | null): Promise<void> {
-    const details = `Usuario: ${userName || userEmail}`;
+    const details = this.buildUserLabel(userEmail, userName);
     return this.record(AuditAction.LOGIN_SUCCESS, userEmail, null, null, details);
   }
 
-  async recordLoginFailed(userEmail?: string | null, info?: string | null, userName?: string | null): Promise<void> {
-    const details = `Usuario: ${userName || userEmail}${info ? `, Razón: ${info}` : ''}`;
+  async recordLoginFailed(
+    userEmail?: string | null,
+    info?: string | null,
+    userName?: string | null
+  ): Promise<void> {
+    const details = this.buildUserWithReasonLabel(userEmail, userName, info || null);
     return this.record(AuditAction.LOGIN_FAILED, userEmail, null, null, details);
   }
 
   async recordLogout(userEmail?: string | null, userName?: string | null): Promise<void> {
-    const details = `Usuario: ${userName || userEmail}`;
+    const details = this.buildUserLabel(userEmail, userName);
     return this.record(AuditAction.LOGOUT, userEmail, null, null, details);
   }
 
@@ -62,7 +121,9 @@ class AuditService {
     roomEmail?: string | null,
     roomName?: string | null
   ): Promise<void> {
-    const details = `Usuario: ${userName || userEmail}, Evento: ${eventTitle || 'Sin título'}${roomName ? `, Sala: ${roomName}` : ''}`;
+    const details =
+      `${this.buildUserLabel(userEmail, userName)}, ` +
+      this.buildEventWithRoomLabel(eventTitle, roomName);
     return this.record(AuditAction.CHECKIN_SUCCESS, userEmail, eventId, roomEmail, details);
   }
 
@@ -72,7 +133,7 @@ class AuditService {
     eventId?: string | null,
     info?: string | null
   ): Promise<void> {
-    const details = `Usuario: ${userName || userEmail}${info ? `, Razón: ${info}` : ''}`;
+    const details = this.buildUserWithReasonLabel(userEmail, userName, info || null);
     return this.record(AuditAction.CHECKIN_FAILED, userEmail, eventId, null, details);
   }
 
@@ -93,7 +154,7 @@ class AuditService {
     eventTitle?: string | null,
     roomName?: string | null
   ): Promise<void> {
-    const details = `Evento: ${eventTitle || 'Sin título'}${roomName ? `, Sala: ${roomName}` : ''}`;
+    const details = this.buildEventWithRoomLabel(eventTitle, roomName);
     return this.record(AuditAction.EVENT_CREATED, null, eventId, null, details);
   }
 
@@ -101,7 +162,7 @@ class AuditService {
     eventId: string,
     eventTitle?: string | null
   ): Promise<void> {
-    const details = `Evento: ${eventTitle || 'Sin título'}`;
+    const details = this.buildEventLabel(eventTitle);
     return this.record(AuditAction.EVENT_UPDATED, null, eventId, null, details);
   }
 
@@ -110,7 +171,7 @@ class AuditService {
     eventTitle?: string | null,
     info?: string | null
   ): Promise<void> {
-    const details = `Evento: ${eventTitle || 'Sin título'}${info ? `, ${info}` : ''}`;
+    const details = this.buildEventWithInfoLabel(eventTitle, info || null);
     return this.record(AuditAction.EVENT_DELETED, null, eventId, null, details);
   }
 
@@ -119,7 +180,7 @@ class AuditService {
     eventTitle?: string | null,
     info?: string | null
   ): Promise<void> {
-    const details = `Evento: ${eventTitle || 'Sin título'}${info ? `, ${info}` : ''}`;
+    const details = this.buildEventWithInfoLabel(eventTitle, info || null);
     return this.record(AuditAction.EVENT_MARKED_OVERLAP, null, eventId, null, details);
   }
 
@@ -128,33 +189,39 @@ class AuditService {
     eventTitle?: string | null,
     roomName?: string | null
   ): Promise<void> {
-    const details = `Evento: ${eventTitle || 'Sin título'}${roomName ? `, Sala: ${roomName}` : ''}, Check-in expirado`;
+    const base = this.buildEventWithRoomLabel(eventTitle, roomName);
+    const details = `${base}, Check-in expirado`;
     return this.record(AuditAction.CHECKIN_EXPIRED, null, eventId, null, details);
   }
 
   // ======= Auditorías de salas =======
   async recordRoomAdded(roomEmail: string, roomName?: string | null): Promise<void> {
-    const details = `Sala: ${roomName || roomEmail}`;
+    const details = this.buildRoomLabel(roomEmail, roomName);
     return this.record(AuditAction.ROOM_ADDED, null, null, roomEmail, details);
   }
 
   async recordRoomDeleted(roomEmail: string, roomName?: string | null): Promise<void> {
-    const details = `Sala: ${roomName || roomEmail}`;
+    const details = this.buildRoomLabel(roomEmail, roomName);
     return this.record(AuditAction.ROOM_DELETED, null, null, roomEmail, details);
   }
 
   async recordRoomRestored(roomEmail: string, roomName?: string | null): Promise<void> {
-    const details = `Sala: ${roomName || roomEmail}`;
+    const details = this.buildRoomLabel(roomEmail, roomName);
     return this.record(AuditAction.ROOM_RESTORED, null, null, roomEmail, details);
   }
 
-  async recordRoomBusy(roomEmail: string, eventId?: string | null, eventTitle?: string | null, roomName?: string | null): Promise<void> {
-    const details = `Sala: ${roomName || roomEmail}${eventTitle ? `, Evento: ${eventTitle}` : ''}`;
-    return this.record(AuditAction.ROOM_BUSY, null, eventId, roomEmail, details);
+  async recordRoomBusy(
+    roomEmail: string,
+    eventId?: string | null,
+    eventTitle?: string | null,
+    roomName?: string | null
+  ): Promise<void> {
+    const details = this.buildRoomBusyLabel(roomEmail, roomName, eventTitle || null);
+    return this.record(AuditAction.ROOM_BUSY, null, eventId ?? null, roomEmail, details);
   }
 
   async recordRoomAvailable(roomEmail: string, roomName?: string | null): Promise<void> {
-    const details = `Sala: ${roomName || roomEmail}`;
+    const details = this.buildRoomLabel(roomEmail, roomName);
     return this.record(AuditAction.ROOM_AVAILABLE, null, null, roomEmail, details);
   }
 
