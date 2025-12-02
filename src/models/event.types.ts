@@ -17,5 +17,3 @@ export interface EventAttributes {
     overlapStatus: OverlapStatus;
     scheduleUpdatedAt?: Date | null;
 }
-
-export { CheckInStatus, ResponseStatus };

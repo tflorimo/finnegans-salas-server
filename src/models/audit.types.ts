@@ -1,5 +1,4 @@
 import { AuditAction } from '../constants/auditActions';
-import { Optional } from 'sequelize';
 
 export interface AuditAttributes {
   id: number;
@@ -11,5 +10,3 @@ export interface AuditAttributes {
   createdAt?: Date;
   updatedAt?: Date;
 }
-
-export type AuditCreationAttributes = Optional<AuditAttributes, 'id' | 'userEmail' | 'eventId' | 'roomEmail' | 'info'>;
