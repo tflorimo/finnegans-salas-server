@@ -1,7 +1,9 @@
-import { DataTypes, Model } from 'sequelize';
+import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/database';
-import { AuditAttributes, AuditCreationAttributes } from './audit.types';
+import { AuditAttributes } from './audit.types';
 import { AuditAction } from '../constants/auditActions';
+
+interface AuditCreationAttributes extends Optional<AuditAttributes, 'id' | 'userEmail' | 'eventId' | 'roomEmail' | 'info'> {}
 
 export class Audit extends Model<AuditAttributes, AuditCreationAttributes> implements AuditAttributes {
   public id!: number;
