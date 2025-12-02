@@ -479,7 +479,7 @@ app.use(compression());  // Activa gzip automático
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    FINNEGANS - DER COMPLETO                            │
+│                    FINNEGANS - DER COMPLETO                             │
 └─────────────────────────────────────────────────────────────────────────┘
 
                               ┌──────────────┐
@@ -491,7 +491,7 @@ app.use(compression());  // Activa gzip automático
                               │ role         │
                               │ photo        │
                               └──────────────┘
-                                     │
+                                       │
                   ┌────────────────────┼────────────────────┐
                   │                    │                    │
             (1:N) │              (1:N) │              (1:N) │
@@ -533,13 +533,13 @@ app.use(compression());  // Activa gzip automático
         │ building                 │
         │ isBusy                   │
         │ currentEventId (FK) ┐    │  ◄────┐
-        │ deleted              │    │       │
-        │ createdAt            │    │       │
-        │ updatedAt            │    │   (1:N) RELATION
+        │ deleted             │    │       │
+        │ createdAt           │    │       │
+        │ updatedAt           │    │   (1:N) RELATION
         └──────────────────────────┘       │
                   ▲                        │
             (1:N) │                        │
-                  │                   (0:1) │
+                  │                   (0:1)│
             ┌─────┴────────────────────────┘
             │  (EVENTS via roomEmail)
             │  (FORECASTS via roomEmail)
@@ -548,17 +548,16 @@ app.use(compression());  // Activa gzip automático
 
 RELACIONES PRINCIPALES:
 ┌──────────────────────────────────────────────────────────────────┐
-│ USERS (1) → (N) EVENTS              via creatorMail             │
-│ USERS (1) → (N) AUDITS              via userEmail               │
-│ USERS (1) → (N) FORECASTS           via userId                  │
-│ ROOMS (1) → (N) EVENTS              via roomEmail               │
-│ ROOMS (1) → (N) AUDITS              via roomEmail               │
-│ ROOMS (1) → (N) FORECASTS           via roomEmail               │
-│ EVENTS (1) → (N) AUDITS             via eventId                 │
-│ EVENTS (1) → (N) OVERLAPS           via primaryEventId          │
+│ USERS (1) → (N) EVENTS              via creatorMail              │
+│ USERS (1) → (N) AUDITS              via userEmail                │
+│ USERS (1) → (N) FORECASTS           via userId                   │
+│ ROOMS (1) → (N) EVENTS              via roomEmail                │
+│ ROOMS (1) → (N) AUDITS              via roomEmail                │
+│ ROOMS (1) → (N) FORECASTS           via roomEmail                │
+│ EVENTS (1) → (N) AUDITS             via eventId                  │
+│ EVENTS (1) → (N) OVERLAPS           via primaryEventId           │
 │ ROOMS (1) → (0:1) EVENTS            via currentEventId (current) │
 └──────────────────────────────────────────────────────────────────┘
-```
 
 ---
 
@@ -745,275 +744,6 @@ app.use(cors({
 
 ---
 
-## 🚢 Despliegue (Deployment)
-
-### Despliegue en Servidor Propio
-
-#### Requisitos
-
-- Servidor Linux (Ubuntu 20.04 LTS recomendado)
-- Node.js 18+ y npm
-- MySQL 8.0+ en la misma máquina o servidor remoto
-- Acceso SSH
-
-#### Pasos
-
-```bash
-# 1. Conectar al servidor
-ssh user@your_server_ip
-
-# 2. Clonar repositorio
-git clone https://github.com/tflorimo/finnegans-salas-server.git
-cd finnegans-salas-server
-
-# 3. Instalar dependencias
-npm ci --production
-
-# 4. Configurar .env con credenciales de producción
-nano .env  # O usar tu editor preferido
-
-# 5. Ejecutar migraciones
-npm run migrate
-
-# 6. Compilar TypeScript
-npm run build
-
-# 7. Instalar PM2 (process manager)
-npm install -g pm2
-
-# 8. Iniciar app con PM2
-pm2 start dist/server.js --name "finnegans-api"
-pm2 save  # Persiste configuración
-pm2 startup  # Auto-inicia con el servidor
-```
-
-### Despliegue con Docker & Docker Compose
-
-#### `docker-compose.yml`
-
-```yaml
-version: '3.8'
-
-services:
-  db:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-    volumes:
-      - mysql_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 5s
-      retries: 10
-
-  api:
-    build: .
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      NODE_ENV: production
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./auth:/app/auth:ro
-    restart: always
-
-volumes:
-  mysql_data:
-```
-
-#### Levantar con Docker
-
-```bash
-docker-compose up -d
-
-# Ver logs
-docker-compose logs -f api
-
-# Ejecutar migraciones
-docker-compose exec api npm run migrate
-
-# Detener
-docker-compose down
-```
-
-### Despliegue en Plataformas PaaS
-
-#### Heroku
-
-```bash
-# 1. Instalar Heroku CLI
-# (Seguir instrucciones en heroku.com)
-
-# 2. Login
-heroku login
-
-# 3. Crear app
-heroku create finnegans-api
-
-# 4. Agregar MySQL (ClearDB o JawsDB)
-heroku addons:create cleardb:ignite
-
-# 5. Configurar variables de entorno
-heroku config:set JWT_SECRET=your_secret
-heroku config:set NODE_ENV=production
-
-# 6. Deploy
-git push heroku main
-
-# 7. Ejecutar migraciones
-heroku run npm run migrate
-```
-
-#### Render.com
-
-```bash
-# 1. Conectar repositorio en Render dashboard
-# 2. Crear servicio Web
-# 3. Configurar:
-#    Build Command: npm install && npm run build
-#    Start Command: npm start
-# 4. Agregar variables de entorno en Environment
-# 5. Crear servicio MySQL externo (recomendado: AWS RDS)
-# 6. Deploy automático en push a main
-```
-
-#### AWS EC2 + RDS
-
-```bash
-# 1. Crear EC2 instance (t3.micro gratis en free tier)
-# 2. Crear RDS MySQL instance
-# 3. Configurar Security Groups para comunicación
-# 4. SSH a EC2 y seguir "Pasos de Servidor Propio"
-# 5. Usar Route53 para DNS
-# 6. CloudFront para CDN (opcional)
-```
-
-### CI/CD con GitHub Actions
-
-#### `.github/workflows/deploy.yml`
-
-```yaml
-name: Deploy
-
-on:
-  push:
-    branches: [main, production]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm run lint
-      - run: npm test
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/production'
-    steps:
-      - uses: actions/checkout@v3
-      - name: Deploy to Render
-        run: |
-          curl -X POST \
-            https://api.render.com/deploy/srv-xxx?key=${{ secrets.RENDER_DEPLOY_KEY }}
-```
-
----
-
-## 🧪 Testing y Calidad de Código
-
-### Estructura Actual
-
-```typescript
-// Tests no están actualmente implementados
-// TODO: Agregar suite de tests completa
-```
-
-### Plan de Testing
-
-#### Unit Tests (Jest) - A Implementar
-
-```bash
-npm install --save-dev jest @types/jest ts-jest
-```
-
-```typescript
-// __tests__/services/eventService.test.ts
-describe('EventService', () => {
-  describe('getAllEvents', () => {
-    it('should return paginated events', async () => {
-      const result = await eventService.getAllEvents({
-        page: 1,
-        perPage: 25
-      });
-      expect(result.items).toHaveLength(25);
-      expect(result.total).toBeGreaterThan(0);
-    });
-  });
-});
-```
-
-#### Integration Tests (Supertest) - A Implementar
-
-```typescript
-// __tests__/api/events.integration.test.ts
-describe('GET /api/events', () => {
-  it('should return 200 with events', async () => {
-    const res = await request(app)
-      .get('/api/events')
-      .set('Authorization', `Bearer ${token}`);
-    
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(Array.isArray(res.body.data.items)).toBe(true);
-  });
-});
-```
-
-#### Ejecución - A Implementar
-
-```bash
-npm install --save-dev supertest @types/jest
-npm test              # Run all tests (cuando se implementen)
-npm run test:watch   # Watch mode (cuando se implementen)
-npm run test:coverage # Coverage report (cuando se implementen)
-```
-
-### Linting y Formatting
-
-#### ESLint - A Instalar
-
-```bash
-npm install --save-dev eslint @types/eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin
-```
-
-#### Prettier - A Instalar
-
-```bash
-npm install --save-dev prettier
-```
-
-#### Pre-commit Hooks (Husky) - A Instalar
-
-```bash
-npm install --save-dev husky lint-staged
-husky install
-
-# Auto-lint antes de commit
-```
-
 ## 🤝 Contribución
 
 ### Workflow de Desarrollo
@@ -1136,4 +866,4 @@ NODE_DEBUG=* npm run dev  # Debug verbose
 
 **Versión**: 1.0.0
 
-**Estado**: ✅ Producción
+**Estado**: Listo para producción
