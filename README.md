@@ -504,9 +504,13 @@ app.use(compression());  // Activa gzip automático
         │ startTime        │ │ action           │ │ roomEmail (FK)   │
         │ endTime          │ │ eventId (FK)     │ │ date             │
         │ roomEmail (FK)   │ │ roomEmail (FK)   │ │ capacity         │
-        │ creatorMail (FK) │ │ info             │ └──────────────────┘
-        │ checkInStatus    │ │ createdAt        │
-        │ deleted          │ └──────────────────┘
+        │ creatorMail (FK) │ │ info             │ │ createdAt        │
+        │ checkInStatus    │ │ createdAt        │ │ updatedAt        │
+        │ overlapStatus    │ └──────────────────┘ └──────────────────┘
+        │ attendees (JSON) │
+        │ deleted          │
+        │ createdAt        │
+        │ updatedAt        │
         └──────────────────┘
                   │
             (1:N) │
@@ -519,28 +523,41 @@ app.use(compression());  // Activa gzip automático
         │ overlappingEvent │
         └──────────────────┘
 
-        ┌──────────────────┐
-        │     ROOMS        │
-        ├──────────────────┤
-        │ email (PK)       │
-        │ name             │
-        │ capacity         │
-        │ floor            │
-        │ building         │
-        │ isBusy           │
-        │ currentEventId   │
-        │ deleted          │
-        └──────────────────┘
+        ┌──────────────────────────┐
+        │       ROOMS              │
+        ├──────────────────────────┤
+        │ email (PK)               │
+        │ name                     │
+        │ capacity                 │
+        │ floor                    │
+        │ building                 │
+        │ isBusy                   │
+        │ currentEventId (FK) ┐    │  ◄────┐
+        │ deleted              │    │       │
+        │ createdAt            │    │       │
+        │ updatedAt            │    │   (1:N) RELATION
+        └──────────────────────────┘       │
+                  ▲                        │
+            (1:N) │                        │
+                  │                   (0:1) │
+            ┌─────┴────────────────────────┘
+            │  (EVENTS via roomEmail)
+            │  (FORECASTS via roomEmail)
+            │  (AUDITS via roomEmail)
+            │  (OVERLAPS - if events are in same room)
 
-RELACIONES:
-- USERS (1) → (N) EVENTS via creatorMail
-- USERS (1) → (N) AUDITS via userEmail
-- USERS (1) → (N) FORECASTS via userId
-- ROOMS (1) → (N) EVENTS via roomEmail
-- ROOMS (1) → (N) AUDITS via roomEmail
-- ROOMS (1) → (N) FORECASTS via roomEmail
-- EVENTS (1) → (N) AUDITS via eventId
-- EVENTS (1) → (N) OVERLAPS via primaryEventId
+RELACIONES PRINCIPALES:
+┌──────────────────────────────────────────────────────────────────┐
+│ USERS (1) → (N) EVENTS              via creatorMail             │
+│ USERS (1) → (N) AUDITS              via userEmail               │
+│ USERS (1) → (N) FORECASTS           via userId                  │
+│ ROOMS (1) → (N) EVENTS              via roomEmail               │
+│ ROOMS (1) → (N) AUDITS              via roomEmail               │
+│ ROOMS (1) → (N) FORECASTS           via roomEmail               │
+│ EVENTS (1) → (N) AUDITS             via eventId                 │
+│ EVENTS (1) → (N) OVERLAPS           via primaryEventId          │
+│ ROOMS (1) → (0:1) EVENTS            via currentEventId (current) │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -997,132 +1014,6 @@ husky install
 # Auto-lint antes de commit
 ```
 
----
-
-## 📈 Posibles Mejoras y Roadmap
-
-### Mejoras Técnicas a Corto Plazo (1-2 meses)
-
-- [ ] **Implementar suite completa de tests** (Jest + Supertest)
-  - Unit tests para services
-  - Integration tests para endpoints
-  - Coverage target: 80%+
-
-- [ ] **Mejorar estructura de DTOs**
-  - Crear validadores con Zod
-  - Documentación OpenAPI/Swagger
-
-- [ ] **Implement Rate Limiting**
-  - express-rate-limit
-  - Prevenir abuso de API
-
-- [ ] **Mejorar logging**
-  - Winston para logs estructurados
-  - Log levels (debug, info, warn, error)
-  - Correlation IDs para tracing
-
-### Mejoras de Arquitectura (2-3 meses)
-
-- [ ] **Implementar Repository Pattern**
-  - Abstraer Sequelize
-  - Facilitar testing
-
-- [ ] **Event-Driven Architecture**
-  - Bull para colas
-  - Desacoplar sincronización
-
-- [ ] **GraphQL Gateway**
-  - Apollo Server
-  - Alternativa a REST
-
-- [ ] **Microservicios**
-  - Separar CheckIn Service
-  - Separar Audit Service
-  - Comunicación via RabbitMQ/Kafka
-
-### Mejoras de Performance (1-2 meses)
-
-- [ ] **Redis Caching**
-  - Cache de eventos frecuentes
-  - Cache de predicciones
-  - Session store
-
-- [ ] **Database Optimization**
-  - Query profiling y análisis
-  - Agregar índices según uso real
-  - Particionamiento de tablas grandes (AUDIT)
-
-- [ ] **Clustering**
-  - PM2 cluster mode
-  - Load balancer (nginx)
-  - Escalabilidad horizontal
-
-- [ ] **CDN para Assets**
-  - Cloudflare
-  - S3 para fotos de usuario
-
-### Seguridad (1 mes)
-
-- [ ] **Audit Logging**
-  - Cambios en tablas críticas
-  - Quién, qué, cuándo, dónde
-
-- [ ] **2FA**
-  - TOTP con authenticator
-  - SMS backup
-
-- [ ] **IP Whitelisting**
-  - Para admin endpoints
-  - API key management
-
-- [ ] **Secrets Management**
-  - HashiCorp Vault
-  - AWS Secrets Manager
-
-### Observabilidad (2-3 meses)
-
-- [ ] **APM Integration**
-  - New Relic o DataDog
-  - Monitor performance
-
-- [ ] **Distributed Tracing**
-  - Jaeger
-  - Correlacionar requests
-
-- [ ] **Alerting**
-  - PagerDuty
-  - Slack notifications
-
-- [ ] **Dashboards**
-  - Grafana
-  - Prometheus metrics
-
-### Roadmap por Trimestre
-
-```
-Q1 2025:
-├─ Testing suite (Jest + Supertest)
-├─ Rate limiting
-└─ Logging mejorado
-
-Q2 2025:
-├─ Repository Pattern
-├─ Redis caching
-└─ Database optimization
-
-Q3 2025:
-├─ Event-driven architecture
-├─ GraphQL gateway
-└─ APM integration
-
-Q4 2025:
-├─ Microservicios MVP
-├─ Distributed tracing
-└─ Escalabilidad horizontal
-```
-
----
-
 ## 🤝 Contribución
 
 ### Workflow de Desarrollo
@@ -1165,7 +1056,6 @@ chore: tasks de build/dependencias
 
 ### Checklist Antes de PR
 
-- [ ] Tests pasan (`npm test`)
 - [ ] Linter pasa (`npm run lint`)
 - [ ] Código formateado (`npm run format`)
 - [ ] Documentación actualizada
@@ -1182,18 +1072,10 @@ Este proyecto está bajo licencia **MIT**. Consulta el archivo `LICENSE` para de
 
 ## 📞 Contacto y Recursos
 
-### Autor
-
-- **Nombre**: Tu Nombre
-- **Email**: tu.email@example.com
-- **GitHub**: [@tflorimo](https://github.com/tflorimo)
-- **LinkedIn**: [Tu Profile](https://linkedin.com/in/tu-profile)
-
 ### Recursos Útiles
 
 - **[Postman Collection](https://www.postman.com/collection/link)** - Documentación interactiva de API
 - **[Swagger / OpenAPI](http://localhost:3000/api-docs)** - En desarrollo
-- **[Wiki del Proyecto](https://github.com/tflorimo/finnegans-salas-server/wiki)** - Guías adicionales
 - **[Issues](https://github.com/tflorimo/finnegans-salas-server/issues)** - Reportar bugs o sugerir features
 
 ### FAQ
