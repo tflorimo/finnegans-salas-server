@@ -12,8 +12,7 @@ async function iniciarServidor() {
 	try {
 		await sequelize.authenticate();
 		console.log(formatInitLog("MySQL conectado"));
-
-		// @PROD luego de la creación de las tablas, comentar para producción 
+		
 		// { alter: true } crea o actualiza las tablas según los modelos
 		await sequelize.sync({ alter: false });
 
